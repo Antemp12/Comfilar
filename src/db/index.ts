@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 
 import { DB_DEV_LOGGER } from "~/app";
 
@@ -15,18 +15,22 @@ if (!process.env.DATABASE_URL) {
  * Caches the database connection in development to
  * prevent creating a new connection on every HMR update.
  */
-type DbConnection = ReturnType<typeof postgres>;
+type DbConnection = mysql.Pool;
 const globalForDb = globalThis as unknown as {
   conn?: DbConnection;
 };
 export const conn: DbConnection =
-  globalForDb.conn ?? postgres(process.env.DATABASE_URL);
+  globalForDb.conn ?? mysql.createPool(process.env.DATABASE_URL);
 if (process.env.NODE_ENV !== "production") {
   globalForDb.conn = conn;
 }
 
 // Database connection instance
-export const db = drizzle(conn, {
-  logger: DB_DEV_LOGGER && process.env.NODE_ENV !== "production",
-  schema,
-});
+export const db = drizzle(
+  conn,
+  {
+    logger: DB_DEV_LOGGER && process.env.NODE_ENV !== "production",
+    schema,
+    mode: "default",
+  } as any,
+) as any;

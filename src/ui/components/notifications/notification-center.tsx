@@ -20,6 +20,7 @@ import {
 import { Notifications } from "./notifications";
 
 export interface Notification {
+  color?: string | null;
   description: string;
   id: string;
   read: boolean;

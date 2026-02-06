@@ -33,19 +33,28 @@ function formatTimestamp(date: Date) {
   return days === 1 ? "1 day ago" : `${days} days ago`;
 }
 
-function getNotificationIcon(type: Notification["type"]) {
+function getFallbackColor(type: Notification["type"]) {
   switch (type) {
     case "error":
-      return <div className="h-2 w-2 rounded-full bg-red-500" />;
-    case "info":
-      return <div className="h-2 w-2 rounded-full bg-blue-500" />;
+      return "#ef4444";
     case "success":
-      return <div className="h-2 w-2 rounded-full bg-green-500" />;
+      return "#22c55e";
     case "warning":
-      return <div className="h-2 w-2 rounded-full bg-yellow-500" />;
+      return "#f59e0b";
+    case "info":
     default:
-      return null;
+      return "#3b82f6";
   }
+}
+
+function getNotificationIcon(notification: Notification) {
+  const color = notification.color ?? getFallbackColor(notification.type);
+  return (
+    <div
+      className="h-2 w-2 rounded-full"
+      style={{ backgroundColor: color }}
+    />
+  );
 }
 
 export const Notifications: React.FC<NotificationsProps> = ({
@@ -80,7 +89,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
         >
           <div className="flex w-full items-start gap-2 p-2">
             <div className="mt-1 flex-shrink-0">
-              {getNotificationIcon(notification.type)}
+              {getNotificationIcon(notification)}
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center justify-between">

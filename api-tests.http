@@ -1,0 +1,409 @@
+### ============================================
+### COMFILAR API - Testes Completos
+### ============================================
+### Instruções:
+### 1. Instala extensão "REST Client" ou "Thunder Client" no VS Code
+### 2. Ajusta as variáveis abaixo conforme necessário
+### 3. Clica em "Send Request" acima de cada requisição
+### 4. Executa primeiro: AUTH → MATERIALS → CART → ORDERS → MEETINGS → NOTIFICATIONS
+### ============================================
+
+@baseUrl = http://localhost:3000/api
+@token = "MzoxNzY2NzkzMTk4NDA4"
+@userId = SEU_USER_ID_AQUI
+@materialId = 1
+@variantId = 1
+@orderId = 1
+@meetingId = 1
+@notificationId = 1
+
+
+### ============================================
+### 0. DEBUG - TESTE SIMPLES
+### ============================================
+
+### 0.1 Teste de conexão (copia e cola isto no REST Client)
+POST {{baseUrl}}/debug
+Content-Type: application/json
+
+{
+  "name": "Teste",
+  "email": "teste@example.com",
+  "password": "senha123",
+  "type": "cliente"
+}
+
+
+### ============================================
+### 1. AUTENTICAÇÃO
+### ============================================
+
+### 1.1 Registar novo utilizador (Cliente)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "João Silva",
+  "email": "joao.silva.teste@example.com",
+  "password": "senha123456",
+  "type": "cliente"
+}
+
+### 1.2 Registar Funcionário
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Maria Santos",
+  "email": "maria.santos.teste@example.com",
+  "password": "senha123456",
+  "type": "funcionario"
+}
+
+### 1.3 Login (copia o token da resposta e cola acima em @token)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "joao.silva.teste@example.com",
+  "password": "senha123456"
+}
+
+
+### ============================================
+### 2. MATERIAIS
+### ============================================
+
+### 2.1 Listar todos os materiais
+GET {{baseUrl}}/materials
+Authorization: Bearer {{token}}
+
+### 2.2 Listar materiais com filtros
+GET {{baseUrl}}/materials?category=Cimento&search=branco&minPrice=10&maxPrice=50&inStock=true
+Authorization: Bearer {{token}}
+
+### 2.3 Obter material específico (com variantes)
+GET {{baseUrl}}/materials/{{materialId}}
+Authorization: Bearer {{token}}
+
+### 2.4 Listar variantes de um material
+GET {{baseUrl}}/materials/{{materialId}}/variants
+Authorization: Bearer {{token}}
+
+### 2.5 Criar nova variante (funcionário/admin)
+POST {{baseUrl}}/materials/{{materialId}}/variants
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "size": "50kg",
+  "color": "Cinza",
+  "stock": 100,
+  "priceAdjustment": "5.00"
+}
+
+### 2.6 Obter variante específica
+GET {{baseUrl}}/materials/{{materialId}}/variants/{{variantId}}
+Authorization: Bearer {{token}}
+
+### 2.7 Atualizar variante (funcionário/admin)
+PATCH {{baseUrl}}/materials/{{materialId}}/variants/{{variantId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "stock": 150,
+  "priceAdjustment": "7.50"
+}
+
+### 2.8 Eliminar variante (admin)
+DELETE {{baseUrl}}/materials/{{materialId}}/variants/{{variantId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### 3. CATEGORIAS
+### ============================================
+
+### 3.1 Listar todas as categorias
+GET {{baseUrl}}/categories
+Authorization: Bearer {{token}}
+
+### 3.2 Ver categoria específica
+GET {{baseUrl}}/categories/1
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### 4. ORÇAMENTOS (QUOTES)
+### ============================================
+
+### 4.1 Listar meus orçamentos
+GET {{baseUrl}}/quotes
+Authorization: Bearer {{token}}
+
+### 4.2 Listar todos os orçamentos (admin)
+GET {{baseUrl}}/quotes?userId=1
+Authorization: Bearer {{token}}
+
+### 4.3 Criar novo pedido de orçamento
+POST {{baseUrl}}/quotes
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "userId": 1,
+  "items": [
+    {
+      "materialId": 1,
+      "quantity": 10
+    },
+    {
+      "materialId": 2,
+      "quantity": 5
+    }
+  ]
+}
+
+### 4.4 Ver orçamento específico
+GET {{baseUrl}}/quotes/1
+Authorization: Bearer {{token}}
+
+### 4.5 Aprovar orçamento (funcionário/admin)
+PATCH {{baseUrl}}/quotes/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "aprovado"
+}
+
+### 4.6 Rejeitar orçamento (funcionário/admin)
+PATCH {{baseUrl}}/quotes/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "rejeitado"
+}
+
+### 4.7 Converter orçamento em encomenda
+POST {{baseUrl}}/quotes/1/convert
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### 5. CARRINHO DE COMPRAS
+### ============================================
+
+### 5.1 Ver carrinho atual (cartId=1)
+GET {{baseUrl}}/cart?cartId=1
+Authorization: Bearer {{token}}
+
+### 5.2 Criar novo carrinho
+POST {{baseUrl}}/cart
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "userId": 1
+}
+
+### 5.3 Adicionar item ao carrinho
+POST {{baseUrl}}/cart/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "cartId": 1,
+  "materialId": {{materialId}},
+  "variantId": {{variantId}},
+  "quantity": 5
+}
+
+### 5.4 Remover item do carrinho
+DELETE {{baseUrl}}/cart/items
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "cartId": 1,
+  "materialId": {{materialId}},
+  "variantId": {{variantId}}
+}
+
+### 5.5 Finalizar compra (checkout)
+POST {{baseUrl}}/cart/checkout
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "cartId": 1,
+  "shippingAddress": "Rua das Flores, 123, Lisboa",
+  "notes": "Entregar no período da manhã"
+}
+
+
+### ============================================
+### 6. PEDIDOS (ORDERS)
+### ============================================
+
+### 6.1 Listar meus pedidos
+GET {{baseUrl}}/orders
+Authorization: Bearer {{token}}
+
+### 6.2 Ver pedido específico
+GET {{baseUrl}}/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+### 6.3 Atualizar status do pedido (funcionário/admin)
+PATCH {{baseUrl}}/orders/{{orderId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "confirmed"
+}
+
+
+### ============================================
+### 7. REUNIÕES (MEETINGS)
+### ============================================
+
+### 7.1 Listar minhas reuniões
+GET {{baseUrl}}/meetings
+Authorization: Bearer {{token}}
+
+### 7.2 Verificar disponibilidade de horários
+GET {{baseUrl}}/meetings/availability?date=2025-01-15
+Authorization: Bearer {{token}}
+
+### 7.3 Criar nova reunião
+POST {{baseUrl}}/meetings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "scheduledAt": "2025-01-15T14:00:00Z",
+  "notes": "Discussão sobre orçamento para obra residencial"
+}
+
+### 7.4 Ver reunião específica
+GET {{baseUrl}}/meetings/{{meetingId}}
+Authorization: Bearer {{token}}
+
+### 7.5 Atualizar reunião
+PATCH {{baseUrl}}/meetings/{{meetingId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "scheduledAt": "2025-01-15T15:00:00Z",
+  "notes": "Alteração de horário - obra comercial"
+}
+
+### 7.6 Cancelar reunião
+DELETE {{baseUrl}}/meetings/{{meetingId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### 8. NOTIFICAÇÕES
+### ============================================
+
+### 8.1 Listar minhas notificações
+GET {{baseUrl}}/notifications
+Authorization: Bearer {{token}}
+
+### 8.2 Criar notificação manual (admin)
+POST {{baseUrl}}/notifications
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "userId": "{{userId}}",
+  "type": "order_confirmed",
+  "title": "Pedido Confirmado",
+  "message": "O seu pedido #123 foi confirmado",
+  "relatedEntityType": "order",
+  "relatedEntityId": "{{orderId}}"
+}
+
+### 8.3 Ver notificação específica
+GET {{baseUrl}}/notifications/{{notificationId}}
+Authorization: Bearer {{token}}
+
+### 8.4 Marcar notificação como lida
+PATCH {{baseUrl}}/notifications/{{notificationId}}
+Authorization: Bearer {{token}}
+
+### 8.5 Marcar todas como lidas
+POST {{baseUrl}}/notifications/read-all
+Authorization: Bearer {{token}}
+
+### 8.6 Eliminar notificação
+DELETE {{baseUrl}}/notifications/{{notificationId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### 9. ADMIN - GESTÃO DE UTILIZADORES
+### ============================================
+
+### 9.1 Listar todos os utilizadores (admin)
+GET {{baseUrl}}/admin/users
+Authorization: Bearer {{token}}
+
+### 9.2 Criar utilizador (admin)
+POST {{baseUrl}}/admin/users
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Admin Silva",
+  "email": "admin.silva@comfilar.pt",
+  "password": "senhaSegura123",
+  "type": "admin"
+}
+
+### 9.3 Ver utilizador específico (admin)
+GET {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### 9.4 Atualizar tipo de utilizador (admin)
+PATCH {{baseUrl}}/admin/users/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "userType": "funcionario"
+}
+
+### 9.5 Eliminar utilizador (admin)
+DELETE {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### NOTAS DE TESTE:
+### ============================================
+### 
+### Ordem recomendada de testes:
+### 1. Registar utilizador (1.1) → copiar token da resposta
+### 2. Fazer login (1.3) → atualizar @token no topo
+### 3. Listar categorias (3.1) → ver categorias disponíveis
+### 4. Listar materiais (2.1) → anotar IDs
+### 5. Criar orçamento (4.3) → com items de materiais
+### 6. Ver orçamento (4.4) → verificar total
+### 7. Aprovar orçamento (4.5) → status aprovado
+### 8. Converter em encomenda (4.7)
+### 9. Listar pedidos (6.1)
+### 10. Criar reunião (7.3)
+### 11. Ver notificações (8.1)
+###
+### Antes de testar, executa o seed:
+### npm run db:seed
+### ou
+### bun src/db/seed.ts
+###
+### ============================================

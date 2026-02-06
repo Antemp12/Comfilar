@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 
-import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin";
+// import { NextSSRPlugin } from "@uploadthing/react/next-ssr-plugin";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { extractRouterConfig } from "uploadthing/server";
+// import { extractRouterConfig } from "uploadthing/server";
 
 import { SEO_CONFIG } from "~/app";
-import { ourFileRouter } from "~/app/api/uploadthing/core";
+// import { ourFileRouter } from "~/app/api/uploadthing/core";
 import { CartProvider } from "~/lib/hooks/use-cart";
+import { FavoritesProvider } from "~/lib/hooks/use-favorites";
+import { AuthProvider } from "~/lib/auth-context";
 import "~/css/globals.css";
 import { Footer } from "~/ui/components/footer";
 import { Header } from "~/ui/components/header/header";
@@ -46,20 +48,24 @@ export default function RootLayout({
           dark:from-neutral-950 dark:to-neutral-900 dark:text-neutral-100
         `}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          disableTransitionOnChange
-          enableSystem
-        >
-          <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} />
+        <AuthProvider>
           <CartProvider>
-            <Header showAuth={true} />
-            <main className={`flex min-h-screen flex-col`}>{children}</main>
-            <Footer />
-            <Toaster />
+            <FavoritesProvider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                disableTransitionOnChange
+                enableSystem
+              >
+                {/* <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} /> */}
+                <Header showAuth={true} />
+                <main className={`flex min-h-screen flex-col`}>{children}</main>
+                <Footer />
+                <Toaster />
+              </ThemeProvider>
+            </FavoritesProvider>
           </CartProvider>
-        </ThemeProvider>
+        </AuthProvider>
         <SpeedInsights />
       </body>
     </html>

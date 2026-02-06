@@ -1,9 +1,9 @@
 export const SEO_CONFIG = {
   description:
-    "Relivator is a robust ecommerce template built with next.js and other modern technologies. It's designed for developers who want a fast, modern, and scalable foundation without reinventing the backend.",
-  fullName: "Relivator Next.js Template",
-  name: "Relivator",
-  slogan: "Store which makes you happy.",
+    "Comfilar é uma plataforma robusta para gerenciar orçamentos e pedidos de materiais de construção. Construído com Next.js e tecnologias modernas para facilitar a vida dos seus clientes.",
+  fullName: "Comfilar - Plataforma de Materiais de Construção",
+  name: "Comfilar",
+  slogan: "Materiais de Construção ao seu alcance.",
 };
 
 export const SYSTEM_CONFIG = {

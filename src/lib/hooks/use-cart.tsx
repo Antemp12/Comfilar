@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { useAuth } from "~/lib/auth-context";
 import type { CartItem } from "~/ui/components/cart";
 
 /* -------------------------------------------------------------------------- */
@@ -25,25 +26,99 @@ export interface CartContextType {
 const CartContext = React.createContext<CartContextType | undefined>(undefined);
 
 /* -------------------------------------------------------------------------- */
-/*                         Local-storage helpers                              */
+/*                              Cart API Helpers                              */
 /* -------------------------------------------------------------------------- */
 
-const STORAGE_KEY = "cart";
-const DEBOUNCE_MS = 500;
+const getAuthHeader = (token?: string | null) => {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
-const loadCartFromStorage = (): CartItem[] => {
-  if (typeof window === "undefined") return [];
+const fetchCart = async (token?: string | null) => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed as CartItem[];
-    }
-  } catch (err) {
-    console.error("Failed to load cart:", err);
+    const response = await fetch("/api/cart", {
+      headers: getAuthHeader(token),
+    });
+    if (!response.ok) return [];
+    return response.json();
+  } catch (error) {
+    console.error("Failed to fetch cart:", error);
+    return [];
   }
-  return [];
+};
+
+const addItemToAPI = async (
+  materialId: number,
+  quantity: number,
+  token?: string | null
+) => {
+  try {
+    const response = await fetch("/api/cart", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(token),
+      },
+      body: JSON.stringify({ materialId, quantity }),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error("Failed to add item to cart:", error);
+    return null;
+  }
+};
+
+const updateItemInAPI = async (
+  materialId: number,
+  quantity: number,
+  token?: string | null
+) => {
+  try {
+    const response = await fetch("/api/cart", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(token),
+      },
+      body: JSON.stringify({ materialId, quantity }),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error("Failed to update cart item:", error);
+    return null;
+  }
+};
+
+const removeItemFromAPI = async (
+  materialId: number,
+  token?: string | null
+) => {
+  try {
+    const response = await fetch(`/api/cart?materialId=${materialId}`, {
+      method: "DELETE",
+      headers: getAuthHeader(token),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error("Failed to remove cart item:", error);
+    return null;
+  }
+};
+
+const clearCartAPI = async (token?: string | null) => {
+  try {
+    const response = await fetch("/api/cart", {
+      method: "DELETE",
+      headers: getAuthHeader(token),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error("Failed to clear cart:", error);
+    return null;
+  }
 };
 
 /* -------------------------------------------------------------------------- */
@@ -51,69 +126,141 @@ const loadCartFromStorage = (): CartItem[] => {
 /* -------------------------------------------------------------------------- */
 
 export function CartProvider({ children }: React.PropsWithChildren) {
-  const [items, setItems] = React.useState<CartItem[]>(loadCartFromStorage);
+  const { isAuthenticated, token, user } = useAuth();
+  const [items, setItems] = React.useState<CartItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  /* -------------------- Persist to localStorage (debounced) ------------- */
-  const saveTimeout = React.useRef<null | ReturnType<typeof setTimeout>>(null);
-
+  /* -------- Load cart when auth state changes (login/logout/user change) ------- */
   React.useEffect(() => {
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      } catch (err) {
-        console.error("Failed to save cart:", err);
+    const loadCart = async () => {
+      setIsLoading(true);
+      if (isAuthenticated && token) {
+        const cartData = await fetchCart(token);
+        console.log("📦 Cart data from API:", cartData);
+        
+        // Transform DB items to CartItem format
+        const transformedItems = (cartData || [])
+          .filter((item: any) => {
+            console.log("🔍 Checking item:", item);
+            return item.material;
+          })
+          .map((item: any) => ({
+            id: String(item.materialId),
+            name: item.material?.name || "",
+            price: Number(item.material?.price || 0),
+            image: item.material?.image || "",
+            category: "",
+            quantity: item.quantity,
+          }));
+        
+        console.log("✅ Transformed items:", transformedItems);
+        setItems(transformedItems);
+      } else {
+        setItems([]);
       }
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      setIsLoading(false);
     };
-  }, [items]);
+
+    loadCart();
+  }, [user?.id, token, isAuthenticated]);
 
   /* ----------------------------- Actions -------------------------------- */
   const addItem = React.useCallback(
-    (newItem: Omit<CartItem, "quantity">, qty = 1) => {
+    async (newItem: Omit<CartItem, "quantity">, qty = 1) => {
+      // Only allow adding to cart if authenticated
+      if (!isAuthenticated || !token) {
+        console.warn("Must be authenticated to add items to cart");
+        return;
+      }
+
       if (qty <= 0) return;
-      setItems((prev) => {
-        const existing = prev.find((i) => i.id === newItem.id);
-        if (existing) {
-          return prev.map((i) =>
-            i.id === newItem.id ? { ...i, quantity: i.quantity + qty } : i,
-          );
-        }
-        return [...prev, { ...newItem, quantity: qty }];
-      });
+
+      const materialId = Number(newItem.id);
+      const result = await addItemToAPI(materialId, qty, token);
+
+      if (result) {
+        const transformedItems = result.map(
+          (item: any) => ({
+            id: String(item.materialId),
+            name: item.material?.name || "",
+            price: Number(item.material?.price || 0),
+            image: item.material?.image || "",
+            category: "",
+            quantity: item.quantity,
+          })
+        );
+        setItems(transformedItems);
+      }
     },
-    [],
+    [isAuthenticated, token]
   );
 
-  const removeItem = React.useCallback((id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
-  }, []);
+  const removeItem = React.useCallback(
+    async (id: string) => {
+      if (!token) return;
 
-  const updateQuantity = React.useCallback((id: string, qty: number) => {
-    setItems((prev) =>
-      prev.flatMap((i) => {
-        if (i.id !== id) return i;
-        if (qty <= 0) return []; // treat zero/negative as remove
-        if (qty === i.quantity) return i;
-        return { ...i, quantity: qty };
-      }),
-    );
-  }, []);
+      const materialId = Number(id);
+      const result = await removeItemFromAPI(materialId, token);
 
-  const clearCart = React.useCallback(() => setItems([]), []);
+      if (result) {
+        const transformedItems = result.map(
+          (item: any) => ({
+            id: String(item.materialId),
+            name: item.material?.name || "",
+            price: Number(item.material?.price || 0),
+            image: item.material?.image || "",
+            category: "",
+            quantity: item.quantity,
+          })
+        );
+        setItems(transformedItems);
+      }
+    },
+    [token]
+  );
+
+  const updateQuantity = React.useCallback(
+    async (id: string, qty: number) => {
+      if (!token) return;
+
+      const materialId = Number(id);
+      const result = await updateItemInAPI(materialId, qty, token);
+
+      if (result) {
+        const transformedItems = result.map(
+          (item: any) => ({
+            id: String(item.materialId),
+            name: item.material?.name || "",
+            price: Number(item.material?.price || 0),
+            image: item.material?.image || "",
+            category: "",
+            quantity: item.quantity,
+          })
+        );
+        setItems(transformedItems);
+      }
+    },
+    [token]
+  );
+
+  const clearCart = React.useCallback(async () => {
+    if (!token) return;
+
+    const result = await clearCartAPI(token);
+    if (result !== null) {
+      setItems([]);
+    }
+  }, [token]);
 
   /* --------------------------- Derived data ----------------------------- */
   const itemCount = React.useMemo(
     () => items.reduce((t, i) => t + i.quantity, 0),
-    [items],
+    [items]
   );
 
   const subtotal = React.useMemo(
     () => items.reduce((t, i) => t + i.price * i.quantity, 0),
-    [items],
+    [items]
   );
 
   /* ----------------------------- Context value -------------------------- */
@@ -135,7 +282,7 @@ export function CartProvider({ children }: React.PropsWithChildren) {
       clearCart,
       itemCount,
       subtotal,
-    ],
+    ]
   );
 
   return <CartContext value={value}>{children}</CartContext>;

@@ -1,11 +1,14 @@
+﻿'use client';
+
 import { ArrowRight, Clock, ShoppingBag, Star, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from 'react';
 
-import UkraineBanner from "~/ui/components/banners/ukraine-banner";
 import { HeroBadge } from "~/ui/components/hero-badge";
 import { ProductCard } from "~/ui/components/product-card";
-import { TestimonialsSection } from "~/ui/components/testimonials/testimonials-with-marquee";
+import { CatalogsCarousel } from "~/ui/components/catalogs-carousel";
+
 import { Button } from "~/ui/primitives/button";
 import {
   Card,
@@ -15,47 +18,98 @@ import {
   CardTitle,
 } from "~/ui/primitives/card";
 
-import { categories, featuredProductsHomepage, testimonials } from "./mocks";
-
 const featuresWhyChooseUs = [
   {
     description:
-      "Free shipping on all orders over $50. Fast and reliable delivery to your doorstep.",
+      "Entrega rápida em todo o país. Rastreamento em tempo real e confiabilidade garantida.",
     icon: <Truck className="h-6 w-6 text-primary" />,
-    title: "Free Shipping",
+    title: "Entrega Rápida",
   },
   {
     description:
-      "Your payment information is always safe and secure with us. We use industry-leading encryption.",
+      "Suas informações de pagamento são sempre seguras. Utilizamos encriptação de nível industrial.",
     icon: <ShoppingBag className="h-6 w-6 text-primary" />,
-    title: "Secure Checkout",
+    title: "Checkout Seguro",
   },
   {
     description:
-      "Our customer support team is always available to help with any questions or concerns.",
+      "Nosso tim de suporte está sempre disponível para ajudar com qualquer dúvida.",
     icon: <Clock className="h-6 w-6 text-primary" />,
-    title: "24/7 Support",
+    title: "Suporte 24/7",
   },
   {
     description:
-      "We stand behind the quality of every product we sell. 30-day money-back guarantee.",
+      "Garantimos a qualidade de todos os produtos. Satisfação garantida ou dinheiro de volta.",
     icon: <Star className="h-6 w-6 text-primary" />,
-    title: "Quality Guarantee",
+    title: "Garantia de Qualidade",
   },
 ];
 
-export default function HomePage() {
-  return (
-    <>
-      <main
-        className={`
-          flex min-h-screen flex-col gap-y-16 bg-gradient-to-b from-muted/50
-          via-muted/25 to-background
-        `}
-      >
-        {/* Sample banner */}
-        <UkraineBanner />
+// Categorias removidas - agora são dinâmicas
 
+
+
+export default function HomePage() {
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+          // Fetch produtos em destaque
+        const response = await fetch('/api/materials?limit=50');
+        const data = await response.json() as any;
+        
+        const featured = (data.data || [])
+          .filter((m: any) => m.isFeatured === true)
+          .slice(0, 8)
+          .map((m: any) => ({
+          id: m.id.toString(),
+          name: m.name,
+          category: m.category?.name || 'Diversos',
+          price: m.price,
+          image: m.image || 'https://via.placeholder.com/400x400?text=' + m.name,
+          inStock: m.stock > 0,
+          rating: 4.5,
+        }));
+        
+        setFeaturedProducts(featured);
+
+              // Fetch categorias principais
+              const categoriesRes = await fetch('/api/categories?hierarchy=true');
+              const categoriesData = await categoriesRes.json() as any;
+              const categoriesList = categoriesData.data || categoriesData || [];
+        
+              // Pegar apenas categorias principais (sem pai) marcadas como featured
+              const mainCategories = categoriesList
+                .filter((cat: any) => !cat.parentCategoryId && cat.isFeatured === true)
+                .slice(0, 4)
+                .map((cat: any) => ({
+                  id: cat.id,
+                  name: cat.name,
+                  image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
+                  productCount: 0, // Pode ser calculado depois se necessário
+                }));
+        
+              setCategories(mainCategories);
+      } catch (err) {
+        console.error('Error fetching featured products:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeaturedProducts();
+  }, []);
+
+  return (
+    <main
+      className={`
+        flex min-h-screen flex-col gap-y-16 bg-gradient-to-b from-muted/50
+        via-muted/25 to-background
+      `}
+    >
         {/* Hero Section */}
         <section
           className={`
@@ -84,8 +138,6 @@ export default function HomePage() {
             >
               <div className="flex flex-col justify-center space-y-6">
                 <div className="space-y-4">
-                  <HeroBadge />
-
                   <h1
                     className={`
                       font-display text-4xl leading-tight font-bold
@@ -95,14 +147,14 @@ export default function HomePage() {
                       lg:leading-[1.1]
                     `}
                   >
-                    Your One-Stop Shop for{" "}
+                    Materiais de Construção{" "}
                     <span
                       className={`
                         bg-gradient-to-r from-primary to-primary/70 bg-clip-text
                         text-transparent
                       `}
                     >
-                      Everything Tech
+                      ao seu Alcance
                     </span>
                   </h1>
                   <p
@@ -111,8 +163,7 @@ export default function HomePage() {
                       md:text-xl
                     `}
                   >
-                    Discover premium products at competitive prices, with fast
-                    shipping and exceptional customer service.
+                    Descubra produtos de qualidade a preços competitivos, com entrega rápida e serviço de atendimento excepcional.
                   </p>
                 </div>
                 <div
@@ -128,16 +179,16 @@ export default function HomePage() {
                       `}
                       size="lg"
                     >
-                      Shop Now <ArrowRight className="h-4 w-4" />
+                      Explorar Agora <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href="/showcase">
+                  <Link href="/auth/register">
                     <Button
                       className="h-12 px-8 transition-colors duration-200"
                       size="lg"
                       variant="outline"
                     >
-                      View Showcase
+                      Criar Conta
                     </Button>
                   </Link>
                 </div>
@@ -148,11 +199,11 @@ export default function HomePage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <Truck className="h-5 w-5 text-primary/70" />
-                    <span>Free shipping over $50</span>
+                    <span>Entrega rápida em todo o país</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-5 w-5 text-primary/70" />
-                    <span>24/7 Customer Support</span>
+                    <span>Suporte 24/7</span>
                   </div>
                 </div>
               </div>
@@ -170,12 +221,12 @@ export default function HomePage() {
                   `}
                 />
                 <Image
-                  alt="Shopping experience"
+                  alt="Recuperador de Calor"
                   className="object-cover"
                   fill
                   priority
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  src="https://images.unsplash.com/photo-1624767735494-1929dc24ad43?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3"
+                  src="https://www.lojaclimatiza.com/image/cache/catalog/2021/Rocal/recuperadores%20/recuperador-de-calor-a-lenha-g-425-porta-guilhotina-rocal-2-500x500.jpg"
                 />
               </div>
             </div>
@@ -186,6 +237,13 @@ export default function HomePage() {
               via-primary/20 to-transparent
             `}
           />
+        </section>
+
+        {/* Catalogs Carousel */}
+        <section className="py-12 md:py-16">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <CatalogsCarousel />
+          </div>
         </section>
 
         {/* Featured Categories */}
@@ -209,12 +267,11 @@ export default function HomePage() {
                   md:text-4xl
                 `}
               >
-                Shop by Category
+                Categorias Populares
               </h2>
               <div className="mt-2 h-1 w-12 rounded-full bg-primary" />
               <p className="mt-4 max-w-2xl text-center text-muted-foreground">
-                Find the perfect device for your needs from our curated
-                collections
+                Encontre os melhores materiais nas nossas categorias curadas
               </p>
             </div>
             <div
@@ -225,14 +282,14 @@ export default function HomePage() {
             >
               {categories.map((category) => (
                 <Link
-                  aria-label={`Browse ${category.name} products`}
+                  aria-label={`Explorar produtos de ${category.name}`}
                   className={`
                     group relative flex flex-col space-y-4 overflow-hidden
                     rounded-2xl border bg-card shadow transition-all
                     duration-300
                     hover:shadow-lg
                   `}
-                  href={`/products?category=${category.name.toLowerCase()}`}
+                  href={`/products?categoryId=${category.id}`}
                   key={category.name}
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
@@ -257,9 +314,11 @@ export default function HomePage() {
                     <div className="mb-1 text-lg font-medium">
                       {category.name}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {category.productCount} products
-                    </p>
+                    {category.productCount > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {category.productCount} produtos
+                      </p>
+                    )}
                   </div>
                 </Link>
               ))}
@@ -288,38 +347,47 @@ export default function HomePage() {
                   md:text-4xl
                 `}
               >
-                Featured Products
+                Produtos em Destaque
               </h2>
               <div className="mt-2 h-1 w-12 rounded-full bg-primary" />
               <p className="mt-4 max-w-2xl text-center text-muted-foreground">
-                Check out our latest and most popular tech items
+                Confira nossos materiais mais populares e bem avaliados
               </p>
             </div>
-            <div
-              className={`
-                grid grid-cols-1 gap-6
-                sm:grid-cols-2
-                lg:grid-cols-3
-                xl:grid-cols-4
-              `}
-            >
-              {featuredProductsHomepage.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-            <div className="mt-10 flex justify-center">
-              <Link href="/products">
-                <Button className="group h-12 px-8" size="lg" variant="outline">
-                  View All Products
-                  <ArrowRight
-                    className={`
-                      ml-2 h-4 w-4 transition-transform duration-300
-                      group-hover:translate-x-1
-                    `}
-                  />
-                </Button>
-              </Link>
-            </div>
+            
+            {loading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Carregando produtos...</p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className={`
+                    grid grid-cols-1 gap-6
+                    sm:grid-cols-2
+                    lg:grid-cols-3
+                    xl:grid-cols-4
+                  `}
+                >
+                  {featuredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+                <div className="mt-10 flex justify-center">
+                  <Link href="/products">
+                    <Button className="group h-12 px-8" size="lg" variant="outline">
+                      Ver Todos os Produtos
+                      <ArrowRight
+                        className={`
+                          ml-2 h-4 w-4 transition-transform duration-300
+                          group-hover:translate-x-1
+                        `}
+                      />
+                    </Button>
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </section>
 
@@ -345,7 +413,7 @@ export default function HomePage() {
                   md:text-4xl
                 `}
               >
-                Why Choose Us
+                Por Que Nos Escolher
               </h2>
               <div className="mt-2 h-1 w-12 rounded-full bg-primary" />
               <p
@@ -354,7 +422,7 @@ export default function HomePage() {
                   md:text-lg
                 `}
               >
-                We offer the best shopping experience with premium features
+                Oferecemos a melhor experiência com recursos premium
               </p>
             </div>
             <div
@@ -409,12 +477,55 @@ export default function HomePage() {
               lg:px-8
             `}
           >
-            <TestimonialsSection
-              className="py-0"
-              description="Don't just take our word for it - hear from our satisfied customers"
-              testimonials={testimonials}
-              title="What Our Customers Say"
-            />
+            <div className="mb-8 flex flex-col items-center text-center">
+              <h2
+                className={`
+                  font-display text-3xl leading-tight font-bold tracking-tight
+                  md:text-4xl
+                `}
+              >
+                O Que Nossos Clientes Dizem
+              </h2>
+              <div className="mt-2 h-1 w-12 rounded-full bg-primary" />
+              <p className="mt-4 max-w-2xl text-center text-muted-foreground">
+                Resultados reais de profissionais que usam Comfilar
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {[
+                {
+                  quote: 'Comfilar revolucionou como gerencio meus pedidos. Ganho 10 horas por semana!',
+                  author: 'João Silva',
+                  role: 'Empreiteiro',
+                },
+                {
+                  quote: 'Os preços são ótimos e o atendimento é excelente. Recomendo para todos.',
+                  author: 'Maria Santos',
+                  role: 'Arquiteta',
+                },
+                {
+                  quote: 'Plataforma intuitiva e confiável. Meus projetos correm muito mais rápido agora.',
+                  author: 'Carlos Oliveira',
+                  role: 'Gestor de Obras',
+                },
+              ].map((testimonial, idx) => (
+                <Card key={idx} className="border-none bg-background shadow">
+                  <CardContent className="pt-6">
+                    <div className="flex gap-1 mb-4">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground italic mb-4">"{testimonial.quote}"</p>
+                    <div>
+                      <p className="font-semibold">{testimonial.author}</p>
+                      <p className="text-sm text-muted-foreground">{testimonial.role}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -451,7 +562,7 @@ export default function HomePage() {
                     md:text-4xl
                   `}
                 >
-                  Ready to Upgrade Your Tech?
+                  Pronto para Começar?
                 </h2>
                 <p
                   className={`
@@ -459,9 +570,7 @@ export default function HomePage() {
                     md:text-xl
                   `}
                 >
-                  Join thousands of satisfied customers and experience the best
-                  tech products on the market. Sign up today for exclusive deals
-                  and offers.
+                  Junte-se a milhares de profissionais que já estão usando Comfilar. Crie sua conta hoje e acesse ofertas exclusivas.
                 </p>
                 <div
                   className={`
@@ -469,12 +578,12 @@ export default function HomePage() {
                     sm:flex-row
                   `}
                 >
-                  <Link href="/auth/sign-up">
+                  <Link href="/auth/register">
                     <Button
                       className="h-12 px-8 transition-colors duration-200"
                       size="lg"
                     >
-                      Sign Up Now
+                      Criar Conta Agora
                     </Button>
                   </Link>
                   <Link href="/products">
@@ -483,7 +592,7 @@ export default function HomePage() {
                       size="lg"
                       variant="outline"
                     >
-                      Browse Products
+                      Explorar Catálogo
                     </Button>
                   </Link>
                 </div>
@@ -491,7 +600,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      </main>
-    </>
+    </main>
   );
 }

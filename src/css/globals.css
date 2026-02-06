@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "uploadthing/tw/v4";
+@import "react-day-picker/dist/style.css";
 
 @plugin "tailwindcss-animate";
 @source "../../node_modules/@uploadthing/react/dist";
@@ -185,4 +186,31 @@
   /* IE and Edge */
   scrollbar-width: none;
   /* Firefox */
+}
+
+/* 🔥 FIX DEFINITIVO PARA react-day-picker */
+/* Restaura estrutura de tabela - override global CSS agressivo */
+.rdp table {
+  display: table !important;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rdp thead {
+  display: table-header-group !important;
+}
+
+.rdp tbody {
+  display: table-row-group !important;
+}
+
+.rdp tr {
+  display: table-row !important;
+}
+
+.rdp th,
+.rdp td {
+  display: table-cell !important;
+  text-align: center;
+  vertical-align: middle;
 }

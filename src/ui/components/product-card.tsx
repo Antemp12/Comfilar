@@ -1,11 +1,12 @@
 "use client";
 
-import { Heart, ShoppingCart, Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 
 import { cn } from "~/lib/cn";
+import { useFavorites } from "~/lib/hooks/use-favorites";
 import { Badge } from "~/ui/primitives/badge";
 import { Button } from "~/ui/primitives/button";
 import { Card, CardContent, CardFooter } from "~/ui/primitives/card";
@@ -38,27 +39,19 @@ export function ProductCard({
   ...props
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = React.useState(false);
-  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
-  const [isInWishlist, setIsInWishlist] = React.useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isInWishlist = isFavorite(Number(product.id));
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (onAddToCart) {
-      setIsAddingToCart(true);
-      // Simulate API call
-      setTimeout(() => {
-        onAddToCart(product.id);
-        setIsAddingToCart(false);
-      }, 600);
-    }
-  };
+  // Wishlist toggles state locally and calls parent handler
+  // Card footer action now leads to product details instead of add-to-cart
 
   const handleAddToWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     if (onAddToWishlist) {
-      setIsInWishlist(!isInWishlist);
       onAddToWishlist(product.id);
+      return;
     }
+    toggleFavorite(Number(product.id));
   };
 
   const discount = product.originalPrice
@@ -98,19 +91,19 @@ export function ProductCard({
 
   return (
     <div className={cn("group", className)} {...props}>
-      <Link href={`/products/${product.id}`}>
-        <Card
-          className={cn(
-            `
-              relative h-full overflow-hidden rounded-lg py-0 transition-all
-              duration-200 ease-in-out
-              hover:shadow-md
-            `,
-            isHovered && "ring-1 ring-primary/20"
-          )}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
+      <Card
+        className={cn(
+          `
+            relative h-full overflow-hidden rounded-lg py-0 transition-all
+            duration-200 ease-in-out
+            hover:shadow-md
+          `,
+          isHovered && "ring-1 ring-primary/20"
+        )}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <Link className="block" href={`/products/${product.id}`}>
           <div className="relative aspect-square overflow-hidden rounded-t-lg">
             {product.image && (
               <Image
@@ -169,12 +162,17 @@ export function ProductCard({
                     : "text-muted-foreground"
                 )}
               />
-              <span className="sr-only">Add to wishlist</span>
+              <span className="sr-only">Adicionar aos favoritos</span>
             </Button>
           </div>
+        </Link>
 
-          <CardContent className="p-4 pt-4">
-            {/* Product name with line clamp */}
+        <CardContent className="p-4 pt-4">
+          {/* Product name with line clamp */}
+          <Link
+            className="block"
+            href={`/products/${product.id}`}
+          >
             <h3
               className={`
                 line-clamp-2 text-base font-medium transition-colors
@@ -183,84 +181,56 @@ export function ProductCard({
             >
               {product.name}
             </h3>
-
-            {variant === "default" && (
-              <>
-                <div className="mt-1.5">{renderStars()}</div>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span className="font-medium text-foreground">
-                    ${product.price.toFixed(2)}
-                  </span>
-                  {product.originalPrice ? (
-                    <span className="text-sm text-muted-foreground line-through">
-                      ${product.originalPrice.toFixed(2)}
-                    </span>
-                  ) : null}
-                </div>
-              </>
-            )}
-          </CardContent>
+          </Link>
 
           {variant === "default" && (
-            <CardFooter className="p-4 pt-0">
-              <Button
-                className={cn(
-                  "w-full gap-2 transition-all",
-                  isAddingToCart && "opacity-70"
-                )}
-                disabled={isAddingToCart}
-                onClick={handleAddToCart}
-              >
-                {isAddingToCart ? (
-                  <div
-                    className={`
-                      h-4 w-4 animate-spin rounded-full border-2
-                      border-background border-t-transparent
-                    `}
-                  />
-                ) : (
-                  <ShoppingCart className="h-4 w-4" />
-                )}
-                Add to Cart
-              </Button>
-            </CardFooter>
-          )}
-
-          {variant === "compact" && (
-            <CardFooter className="p-4 pt-0">
-              <div className="flex w-full items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-medium text-foreground">
-                    ${product.price.toFixed(2)}
+            <>
+              <div className="mt-1.5">{renderStars()}</div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="font-medium text-foreground">
+                  ${Number(product.price).toFixed(2)}
+                </span>
+                {product.originalPrice ? (
+                  <span className="text-sm text-muted-foreground line-through">
+                    ${Number(product.originalPrice).toFixed(2)}
                   </span>
-                  {product.originalPrice ? (
-                    <span className="text-sm text-muted-foreground line-through">
-                      ${product.originalPrice.toFixed(2)}
-                    </span>
-                  ) : null}
-                </div>
-                <Button
-                  className="h-8 w-8 rounded-full"
-                  disabled={isAddingToCart}
-                  onClick={handleAddToCart}
-                  size="icon"
-                  variant="ghost"
-                >
-                  {isAddingToCart ? (
-                    <div
-                      className={`
-                        h-4 w-4 animate-spin rounded-full border-2
-                        border-primary border-t-transparent
-                      `}
-                    />
-                  ) : (
-                    <ShoppingCart className="h-4 w-4" />
-                  )}
-                  <span className="sr-only">Add to cart</span>
-                </Button>
+                ) : null}
               </div>
-            </CardFooter>
+            </>
           )}
+        </CardContent>
+
+        {variant === "default" && (
+          <CardFooter className="p-4 pt-0">
+            <Button asChild className="w-full" variant="secondary">
+              <Link href={`/products/${product.id}`}>
+                Ver detalhes
+              </Link>
+            </Button>
+          </CardFooter>
+        )}
+
+        {variant === "compact" && (
+          <CardFooter className="p-4 pt-0">
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-foreground">
+                  ${Number(product.price).toFixed(2)}
+                </span>
+                {product.originalPrice ? (
+                  <span className="text-sm text-muted-foreground line-through">
+                    ${Number(product.originalPrice).toFixed(2)}
+                  </span>
+                ) : null}
+              </div>
+              <Button asChild className="h-8" size="sm" variant="outline">
+                <Link href={`/products/${product.id}`}>
+                  Ver detalhes
+                </Link>
+              </Button>
+            </div>
+          </CardFooter>
+        )}
 
           {!product.inStock && (
             <div
@@ -270,12 +240,11 @@ export function ProductCard({
               `}
             >
               <Badge className="px-3 py-1 text-sm" variant="destructive">
-                Out of Stock
+                Sem Stock
               </Badge>
             </div>
           )}
         </Card>
-      </Link>
     </div>
   );
 }

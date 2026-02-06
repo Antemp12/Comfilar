@@ -4,7 +4,9 @@ import { Shield, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import { twoFactor, useCurrentUserOrRedirect } from "~/lib/auth-client";
+import { twoFactor } from "~/lib/auth-client";
+import { useAuth } from "~/lib/auth-context";
+import { RoleGuard } from "~/lib/role-guard";
 import { Button } from "~/ui/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
 import { Input } from "~/ui/primitives/input";
@@ -12,7 +14,7 @@ import { Label } from "~/ui/primitives/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/ui/primitives/tabs";
 
 export function ProfilePageClient() {
-  const { isPending, user } = useCurrentUserOrRedirect();
+  const { user } = useAuth();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -20,16 +22,6 @@ export function ProfilePageClient() {
   const [showQrCode, setShowQrCode] = useState(false);
   const [qrCodeData, setQrCodeData] = useState("");
   const [secret, setSecret] = useState("");
-
-  if (isPending) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Loading...</h1>
-        </div>
-      </div>
-    );
-  }
 
   const handleEnableTwoFactor = () => {
     if (!password) {
@@ -107,6 +99,7 @@ export function ProfilePageClient() {
   };
 
   return (
+    <RoleGuard allowedRoles={['cliente']}>
     <div
       className={`
         container space-y-6 p-4
@@ -259,5 +252,6 @@ export function ProfilePageClient() {
         </TabsContent>
       </Tabs>
     </div>
+  </RoleGuard>
   );
 }

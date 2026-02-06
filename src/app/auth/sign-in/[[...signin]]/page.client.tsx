@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 import { SEO_CONFIG, SYSTEM_CONFIG } from "~/app";
 import { signIn } from "~/lib/auth-client";
+import { useAuth } from "~/lib/auth-context";
 import { GitHubIcon } from "~/ui/components/icons/github";
 import { GoogleIcon } from "~/ui/components/icons/google";
 import { Button } from "~/ui/primitives/button";
@@ -15,12 +16,39 @@ import { Input } from "~/ui/primitives/input";
 import { Label } from "~/ui/primitives/label";
 import { Separator } from "~/ui/primitives/separator";
 
+const DEFAULT_IMAGE = "https://i.etsystatic.com/20800859/r/il/31ce6c/2784722638/il_570xN.2784722638_62jx.jpg";
+
 export function SignInPageClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const userType = searchParams.get("type") || "cliente"; // admin, funcionario, or cliente
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState(DEFAULT_IMAGE);
+
+  useEffect(() => {
+    // Fetch background image based on user type
+    const imageKey = userType === "admin" 
+      ? "admin_background_image" 
+      : userType === "funcionario" 
+      ? "funcionario_background_image" 
+      : "login_background_image";
+
+    fetch(`/api/admin/settings?key=${imageKey}`)
+      .then((res) => res.json())
+      .then((data: any) => {
+        if (data.data?.value) {
+          setBackgroundImage(data.data.value);
+        }
+      })
+      .catch(() => {
+        // Use default image on error
+        setBackgroundImage(DEFAULT_IMAGE);
+      });
+  }, [userType]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,14 +56,22 @@ export function SignInPageClient() {
     setLoading(true);
 
     try {
-      await signIn.email({
-        email,
-        password,
-      });
-      router.push(SYSTEM_CONFIG.redirectAfterSignIn);
+      const user = await login(email, password);
+      
+      // Redirect based on user type
+      if (user) {
+        const redirectMap: Record<string, string> = {
+          cliente: '/dashboard/home',
+          funcionario: '/funcionario',
+          admin: '/admin',
+        };
+        const userType = (user as any).type || 'cliente';
+        router.push(redirectMap[userType] || '/dashboard/home');
+      }
     } catch (err) {
-      setError("Invalid email or password");
-      console.error(err);
+      const message = err instanceof Error ? err.message : "Email ou senha inválida";
+      setError(message);
+      console.error("Erro no login:", err);
     } finally {
       setLoading(false);
     }
@@ -46,7 +82,7 @@ export function SignInPageClient() {
     try {
       void signIn.social({ provider: "github" });
     } catch (err) {
-      setError("Failed to sign in with GitHub");
+      setError("Falha ao entrar com GitHub");
       console.error(err);
       setLoading(false);
     }
@@ -57,7 +93,7 @@ export function SignInPageClient() {
     try {
       void signIn.social({ provider: "google" });
     } catch (err) {
-      setError("Failed to sign in with Google");
+      setError("Falha ao entrar com Google");
       console.error(err);
       setLoading(false);
     }
@@ -83,7 +119,7 @@ export function SignInPageClient() {
           fill
           priority
           sizes="(max-width: 768px) 0vw, 50vw"
-          src="https://images.unsplash.com/photo-1719811059181-09032aef07b8?q=80&w=1200&auto=format&fit=crop&ixlib=rb-4.0.3"
+          src={backgroundImage}
         />
         <div
           className={`
@@ -112,9 +148,9 @@ export function SignInPageClient() {
               md:text-left
             `}
           >
-            <h2 className="text-3xl font-bold">Sign In</h2>
+            <h2 className="text-3xl font-bold">Entrar</h2>
             <p className="text-sm text-muted-foreground">
-              Enter your credentials to access your account
+              Insira as suas credenciais para aceder à sua conta
             </p>
           </div>
 
@@ -142,7 +178,7 @@ export function SignInPageClient() {
                 </div>
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">Senha</Label>
                     <Link
                       className={`
                         text-sm text-muted-foreground
@@ -150,7 +186,7 @@ export function SignInPageClient() {
                       `}
                       href="#"
                     >
-                      Forgot password?
+                      Esqueceu a senha?
                     </Link>
                   </div>
                   <Input
@@ -169,7 +205,7 @@ export function SignInPageClient() {
                   </div>
                 )}
                 <Button className="w-full" disabled={loading} type="submit">
-                  {loading ? "Signing in..." : "Sign in"}
+                  {loading ? "Entrando..." : "Entrar"}
                 </Button>
               </form>
               <div className="relative mt-6">
@@ -178,7 +214,7 @@ export function SignInPageClient() {
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                   <span className="bg-background px-2 text-muted-foreground">
-                    Or continue with
+                    Ou continuar com
                   </span>
                 </div>
               </div>
@@ -203,7 +239,7 @@ export function SignInPageClient() {
                 </Button>
               </div>
               <div className="mt-6 text-center text-sm text-muted-foreground">
-                Don't have an account?{" "}
+                Não tem uma conta?{" "}
                 <Link
                   className={`
                     text-primary underline-offset-4
@@ -211,7 +247,7 @@ export function SignInPageClient() {
                   `}
                   href="/auth/sign-up"
                 >
-                  Sign up
+                  Registar
                 </Link>
               </div>
             </CardContent>

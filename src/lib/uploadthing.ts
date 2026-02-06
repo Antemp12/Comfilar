@@ -1,6 +1,21 @@
-import { generateUploadButton } from "@uploadthing/react";
+import * as React from "react";
 
-import type { OurFileRouter } from "~/app/api/uploadthing/core";
+type UploadButtonProps = {
+	endpoint: string;
+	onClientUploadComplete?: (res: unknown) => void;
+	onUploadError?: (error: Error) => void;
+};
 
-export const UploadButton = generateUploadButton<OurFileRouter>();
-// export const UploadDropzone = generateUploadDropzone<OurFileRouter>();
+// Temporary placeholder UploadButton until UploadThing routes are restored
+export function UploadButton(_props: UploadButtonProps) {
+	return React.createElement(
+		"button",
+		{
+			disabled: true,
+			title: "Upload temporarily disabled",
+			className:
+				"inline-flex h-10 items-center justify-center rounded-md border bg-muted px-4 text-sm text-muted-foreground",
+		},
+		"Upload disabled",
+	);
+}

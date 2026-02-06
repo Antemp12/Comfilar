@@ -4,8 +4,22 @@ import Link from "next/link";
 import { SEO_CONFIG } from "~/app";
 import { cn } from "~/lib/cn";
 import { Button } from "~/ui/primitives/button";
+import { db } from "~/db";
+import { categoriesTable } from "~/db/schema";
+import { isNull } from "drizzle-orm";
 
-export function Footer({ className }: { className?: string }) {
+export async function Footer({ className }: { className?: string }) {
+  // Fetch categories directly from database
+  let categories = [];
+  try {
+    categories = await db
+      .select()
+      .from(categoriesTable)
+      .where(isNull(categoriesTable.parentCategoryId))
+      .limit(5);
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+  }
   return (
     <footer className={cn("border-t bg-background", className)}>
       <div
@@ -33,8 +47,7 @@ export function Footer({ className }: { className?: string }) {
               </span>
             </Link>
             <p className="text-sm text-muted-foreground">
-              Your one-stop shop for everything tech. Premium products at
-              competitive prices.
+              A sua loja única para tudo. Produtos premium a preços competitivos.
             </p>
             <div className="flex space-x-4">
               <Button
@@ -80,67 +93,39 @@ export function Footer({ className }: { className?: string }) {
             </div>
           </div>
           <div>
-            <h3 className="mb-4 text-sm font-semibold">Shop</h3>
+            <h3 className="mb-4 text-sm font-semibold">Categorias</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  className={`
-                    text-muted-foreground
-                    hover:text-foreground
-                  `}
-                  href="/products"
-                >
-                  All Products
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className={`
-                    text-muted-foreground
-                    hover:text-foreground
-                  `}
-                  href="/products?category=audio"
-                >
-                  Audio
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className={`
-                    text-muted-foreground
-                    hover:text-foreground
-                  `}
-                  href="/products?category=wearables"
-                >
-                  Wearables
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className={`
-                    text-muted-foreground
-                    hover:text-foreground
-                  `}
-                  href="/products?category=smartphones"
-                >
-                  Smartphones
-                </Link>
-              </li>
-              <li>
-                <Link
-                  className={`
-                    text-muted-foreground
-                    hover:text-foreground
-                  `}
-                  href="/products?category=laptops"
-                >
-                  Laptops
-                </Link>
-              </li>
+              {categories && categories.length > 0 ? (
+                categories.map((category: any) => (
+                  <li key={category.id}>
+                    <Link
+                      className={`
+                        text-muted-foreground
+                        hover:text-foreground
+                      `}
+                      href={`/products?category=${category.id}`}
+                    >
+                      {category.name}
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <li>
+                  <Link
+                    className={`
+                      text-muted-foreground
+                      hover:text-foreground
+                    `}
+                    href="/products"
+                  >
+                    Ver Todos os Produtos
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
           <div>
-            <h3 className="mb-4 text-sm font-semibold">Company</h3>
+            <h3 className="mb-4 text-sm font-semibold">Empresa</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
@@ -150,7 +135,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/about"
                 >
-                  About Us
+                  Sobre Nós
                 </Link>
               </li>
               <li>
@@ -161,7 +146,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/careers"
                 >
-                  Careers
+                  Carreiras
                 </Link>
               </li>
               <li>
@@ -183,7 +168,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/press"
                 >
-                  Press
+                  Imprensa
                 </Link>
               </li>
               <li>
@@ -194,13 +179,13 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/contact"
                 >
-                  Contact
+                  Contacto
                 </Link>
               </li>
             </ul>
           </div>
           <div>
-            <h3 className="mb-4 text-sm font-semibold">Support</h3>
+            <h3 className="mb-4 text-sm font-semibold">Suporte</h3>
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
@@ -210,7 +195,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/help"
                 >
-                  Help Center
+                  Centro de Ajuda
                 </Link>
               </li>
               <li>
@@ -221,7 +206,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/shipping"
                 >
-                  Shipping & Returns
+                  Envio e Devoluções
                 </Link>
               </li>
               <li>
@@ -232,7 +217,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/warranty"
                 >
-                  Warranty
+                  Garantia
                 </Link>
               </li>
               <li>
@@ -243,7 +228,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/privacy"
                 >
-                  Privacy Policy
+                  Política de Privacidade
                 </Link>
               </li>
               <li>
@@ -254,7 +239,7 @@ export function Footer({ className }: { className?: string }) {
                   `}
                   href="/terms"
                 >
-                  Terms of Service
+                  Termos de Serviço
                 </Link>
               </li>
             </ul>
@@ -268,8 +253,8 @@ export function Footer({ className }: { className?: string }) {
             `}
           >
             <p className="text-sm text-muted-foreground">
-              &copy; {new Date().getFullYear()} {SEO_CONFIG.name}. All rights
-              reserved.
+              &copy; {new Date().getFullYear()} {SEO_CONFIG.name}. Todos os direitos
+              reservados.
             </p>
             <div
               className={
@@ -277,16 +262,16 @@ export function Footer({ className }: { className?: string }) {
               }
             >
               <Link className="hover:text-foreground" href="/privacy">
-                Privacy
+                Privacidade
               </Link>
               <Link className="hover:text-foreground" href="/terms">
-                Terms
+                Termos
               </Link>
               <Link className="hover:text-foreground" href="/cookies">
                 Cookies
               </Link>
               <Link className="hover:text-foreground" href="/sitemap">
-                Sitemap
+                Mapa do Site
               </Link>
             </div>
           </div>

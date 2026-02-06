@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 
+import { useCart } from "~/lib/hooks/use-cart";
 import { cn } from "~/lib/cn";
 import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { Badge } from "~/ui/primitives/badge";
@@ -41,8 +42,8 @@ interface CartProps {
 }
 
 export function CartClient({ className, mockCart }: CartProps) {
+  const { items, removeItem, updateQuantity, clearCart } = useCart();
   const [isOpen, setIsOpen] = React.useState(false);
-  const [cartItems, setCartItems] = React.useState<CartItem[]>(mockCart);
   const [isMounted, setIsMounted] = React.useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -50,27 +51,22 @@ export function CartClient({ className, mockCart }: CartProps) {
     setIsMounted(true);
   }, []);
 
-  const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const subtotal = cartItems.reduce(
+  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
+  const subtotal = items.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
 
   const handleUpdateQuantity = (id: string, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, quantity: newQuantity } : item,
-      ),
-    );
+    updateQuantity(id, newQuantity);
   };
 
   const handleRemoveItem = (id: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
+    removeItem(id);
   };
 
   const handleClearCart = () => {
-    setCartItems([]);
+    clearCart();
   };
 
   const CartTrigger = (
@@ -117,7 +113,7 @@ export function CartClient({ className, mockCart }: CartProps) {
 
         <div className="flex-1 overflow-y-auto px-6">
           <AnimatePresence>
-            {cartItems.length === 0 ? (
+            {items.length === 0 ? (
               <motion.div
                 animate={{ opacity: 1 }}
                 className="flex flex-col items-center justify-center py-12"
@@ -152,7 +148,7 @@ export function CartClient({ className, mockCart }: CartProps) {
               </motion.div>
             ) : (
               <div className="space-y-4 py-4">
-                {cartItems.map((item) => (
+                {items.map((item) => (
                   <motion.div
                     animate={{ opacity: 1, y: 0 }}
                     className={`
@@ -258,7 +254,7 @@ export function CartClient({ className, mockCart }: CartProps) {
           </AnimatePresence>
         </div>
 
-        {cartItems.length > 0 && (
+        {items.length > 0 && (
           <div className="border-t px-6 py-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
@@ -276,9 +272,23 @@ export function CartClient({ className, mockCart }: CartProps) {
                   ${subtotal.toFixed(2)}
                 </span>
               </div>
-              <Button className="w-full" size="lg">
-                Checkout
-              </Button>
+              {isDesktop ? (
+                <SheetClose asChild>
+                  <Link href="/dashboard/checkout">
+                    <Button className="w-full" size="lg">
+                      Checkout
+                    </Button>
+                  </Link>
+                </SheetClose>
+              ) : (
+                <DrawerClose asChild>
+                  <Link href="/dashboard/checkout">
+                    <Button className="w-full" size="lg">
+                      Checkout
+                    </Button>
+                  </Link>
+                </DrawerClose>
+              )}
               <div className="flex items-center justify-between">
                 {isDesktop ? (
                   <SheetClose asChild>

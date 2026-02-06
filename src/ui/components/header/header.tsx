@@ -1,12 +1,14 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { SEO_CONFIG } from "~/app";
 import { useCurrentUser } from "~/lib/auth-client";
+import { useAuth } from "~/lib/auth-context";
 import { cn } from "~/lib/cn";
 import { Cart } from "~/ui/components/cart";
 import { Button } from "~/ui/primitives/button";
@@ -15,6 +17,7 @@ import { Skeleton } from "~/ui/primitives/skeleton";
 import { NotificationsWidget } from "../notifications/notifications-widget";
 import { ThemeToggle } from "../theme-toggle";
 import { HeaderUserDropdown } from "./header-user";
+import { ClientHeader } from "./client-header";
 
 interface HeaderProps {
   children?: React.ReactNode;
@@ -24,19 +27,25 @@ interface HeaderProps {
 export function Header({ showAuth = true }: HeaderProps) {
   const pathname = usePathname();
   const { isPending, user } = useCurrentUser();
+  const { user: authUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Se utilizador está autenticado e é cliente, usar ClientHeader
+  if (authUser && authUser.type === 'cliente') {
+    return <ClientHeader />;
+  }
+
   const mainNavigation = [
-    { href: "/", name: "Home" },
-    { href: "/products", name: "Products" },
+    { href: "/", name: "Início" },
+    { href: "/products", name: "Produtos" },
   ];
 
   const dashboardNavigation = [
-    { href: "/dashboard/stats", name: "Stats" },
-    { href: "/dashboard/profile", name: "Profile" },
-    { href: "/dashboard/settings", name: "Settings" },
-    { href: "/dashboard/uploads", name: "Uploads" },
-    { href: "/admin/summary", name: "Admin" },
+    { href: "/dashboard/stats", name: "Estatísticas" },
+    { href: "/dashboard/profile", name: "Perfil" },
+    { href: "/dashboard/settings", name: "Configurações" },
+    { href: "/dashboard/uploads", name: "Ficheiros" },
+    { href: "/admin/summary", name: "Administrador" },
   ];
 
   const isDashboard =
@@ -58,21 +67,17 @@ export function Header({ showAuth = true }: HeaderProps) {
           lg:px-8
         `}
       >
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-6">
+        <div className="flex h-20 items-center justify-between">
+          <div className="flex items-center gap-3">
             <Link className="flex items-center gap-2" href="/">
-              <span
-                className={cn(
-                  "text-xl font-bold",
-                  !isDashboard &&
-                    `
-                      bg-gradient-to-r from-primary to-primary/70 bg-clip-text
-                      tracking-tight text-transparent
-                    `,
-                )}
-              >
-                {SEO_CONFIG.name}
-              </span>
+              <Image
+                src="/images/logotipoteste.png"
+                alt="Comfilar Logo"
+                width={110}
+                height={62}
+                priority
+                sizes="(max-width: 768px) 85px, 110px"
+              />
             </Link>
             <nav
               className={`
@@ -149,11 +154,11 @@ export function Header({ showAuth = true }: HeaderProps) {
                   <div className="flex items-center gap-2">
                     <Link href="/auth/sign-in">
                       <Button size="sm" variant="ghost">
-                        Log in
+                        Entrar
                       </Button>
                     </Link>
                     <Link href="/auth/sign-up">
-                      <Button size="sm">Sign up</Button>
+                      <Button size="sm">Registar</Button>
                     </Link>
                   </div>
                 )}
@@ -230,7 +235,7 @@ export function Header({ showAuth = true }: HeaderProps) {
                 href="/auth/sign-in"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Log in
+                Entrar
               </Link>
               <Link
                 className={`
@@ -241,7 +246,7 @@ export function Header({ showAuth = true }: HeaderProps) {
                 href="/auth/sign-up"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Sign up
+                Registar
               </Link>
             </div>
           )}
