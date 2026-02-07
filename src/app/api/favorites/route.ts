@@ -21,6 +21,11 @@ async function getUserIdFromRequest(req: NextRequest) {
   return payload.userId as number;
 }
 
+/**
+ * GET /api/favorites
+ * Obter lista de materiais favoritados pelo utilizador
+ * Requer autenticacao JWT valida
+ */
 export async function GET(req: NextRequest) {
   try {
     const userId = await getUserIdFromRequest(req);
@@ -39,6 +44,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * POST /api/favorites
+ * Adicionar material aos favoritos do utilizador
+ * Body: { materialId: number }
+ */
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserIdFromRequest(req);

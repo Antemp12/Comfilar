@@ -25,6 +25,7 @@ interface Material {
   categoryId: number;
   priceTypeId: number | null;
   isBestSeller?: boolean;
+  attributes?: Record<string, string[]>;
   category?: {
     id: number;
     name: string;
@@ -43,7 +44,7 @@ interface Category {
 }
 
 interface CategoryAttribute {
-  id: number;
+  id: string | number; // Can be string (attribute name) or number
   categoryId: number;
   name: string;
   type: "text" | "select" | "range";
@@ -64,8 +65,31 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState<"name" | "price-asc" | "price-desc">("name");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
-  const [attributeFilters, setAttributeFilters] = useState<Record<number, string[]>>({});
+  const [attributeFilters, setAttributeFilters] = useState<Record<number | string, string[]>>({});
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+
+  // Restaurar filtros do localStorage ao montar o componente
+  useEffect(() => {
+    const savedFilters = localStorage.getItem("productFilters");
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters) as {
+          searchTerm?: string;
+          selectedCategory?: number | null;
+          sortBy?: "name" | "price-asc" | "price-desc";
+          minPrice?: string;
+          maxPrice?: string;
+        };
+        setSearchTerm(parsed.searchTerm || "");
+        setSelectedCategory(parsed.selectedCategory ?? null);
+        setSortBy(parsed.sortBy || "name");
+        setMinPrice(parsed.minPrice || "");
+        setMaxPrice(parsed.maxPrice || "");
+      } catch (error) {
+        console.error("Erro ao restaurar filtros:", error);
+      }
+    }
+  }, []);
 
   // Fetch materials and main categories
   useEffect(() => {
@@ -109,6 +133,17 @@ export default function ProductsPage() {
     fetchData();
   }, []);
 
+  // Guardar filtros no localStorage sempre que mudam
+  useEffect(() => {
+    localStorage.setItem("productFilters", JSON.stringify({
+      searchTerm,
+      selectedCategory,
+      sortBy,
+      minPrice,
+      maxPrice
+    }));
+  }, [searchTerm, selectedCategory, sortBy, minPrice, maxPrice]);
+
   // Fetch category attributes when selected category changes
   useEffect(() => {
     if (selectedCategory === null) {
@@ -121,25 +156,64 @@ export default function ProductsPage() {
       try {
         const res = await fetch(`/api/categories/${selectedCategory}/attributes`);
         if (res.ok) {
-          const data = (await res.json()) as { data?: any[] };
-          // Converter formato da API para compatível com renderização
-          const formattedAttrs = data.data?.map((attr: any) => ({
-            id: attr.id,
-            categoryId: selectedCategory as number,
-            name: attr.name,
-            type: "select" as const,
-            values: Array.isArray(attr.values) ? attr.values.map((v: string, idx: number) => ({
-              id: idx,
-              value: v
-            })) : []
-          })) || [];
+          const data = (await res.json()) as any;
           
-          console.log("📋 Formatted attributes:", formattedAttrs);
+          // Handle multiple response formats
+          const attributesList = Array.isArray(data?.data) ? data.data : 
+                                 Array.isArray(data) ? data : [];
+          
+          if (attributesList.length === 0) {
+            setCategoryAttributes([]);
+            setAttributeFilters({});
+            return;
+          }
+          
+          // Agrupar atributos com o mesmo nome, mas manter nomes para filtros
+          const attributesByName = new Map<string, { name: string; values: Set<string> }>();
+          
+          attributesList.forEach((attr: any) => {
+            const normalizedName = attr.name.toLowerCase().trim();
+            
+            if (!attributesByName.has(normalizedName)) {
+              attributesByName.set(normalizedName, {
+                name: attr.name,
+                values: new Set()
+              });
+            }
+            
+            // Adicionar todos os valores para este nome de atributo
+            if (Array.isArray(attr.values)) {
+              attr.values.forEach((v: string) => {
+                if (v && v.trim()) {
+                  attributesByName.get(normalizedName)?.values.add(v.trim());
+                }
+              });
+            }
+          });
+          
+          // Converter para o formato esperado - usar nome do atributo para filtering
+          const formattedAttrs = Array.from(attributesByName.entries()).map(([normalizedName, attr]) => ({
+            id: normalizedName, // Use normalized name as ID for filtering against material.attributes keys
+            categoryId: selectedCategory as number,
+            name: attr.name, // Display the original name
+            type: "select" as const,
+            values: Array.from(attr.values)
+              .sort()
+              .map((v: string, vidx: number) => ({
+                id: vidx,
+                value: v
+              }))
+          }));
+          
+          console.log("📋 Grouped attributes:", formattedAttrs);
+          console.log("📊 Raw attributes count:", attributesList.length);
+          console.log("📊 Unique attributes after grouping:", formattedAttrs.length);
           setCategoryAttributes(formattedAttrs);
           setAttributeFilters({});
         }
       } catch (error) {
         console.error("❌ Error fetching attributes:", error);
+        setCategoryAttributes([]);
       }
     }
 
@@ -198,6 +272,29 @@ export default function ProductsPage() {
       result = result.filter((m) => Number.parseFloat(m.price) <= max);
     }
 
+    // Filter by attributes
+    const activeAttributeFilters = Object.entries(attributeFilters).filter(
+      ([, values]) => values.length > 0
+    );
+
+    if (activeAttributeFilters.length > 0) {
+      result = result.filter((material) => {
+        // Check if material has all selected attribute values
+        return activeAttributeFilters.every(([attrId, selectedValues]) => {
+          const materialAttrs = material.attributes as Record<string, string[]> | undefined;
+          if (!materialAttrs) return false;
+
+          const materialAttrValues = materialAttrs[attrId] || [];
+          // Check if material has at least one of the selected values for this attribute
+          return selectedValues.some((val) =>
+            materialAttrValues.some(
+              (matVal: string) => matVal.toLowerCase() === val.toLowerCase()
+            )
+          );
+        });
+      });
+    }
+
     // Sort
     result.sort((a, b) => {
       switch (sortBy) {
@@ -212,7 +309,7 @@ export default function ProductsPage() {
     });
 
     return result;
-  }, [materials, searchTerm, selectedCategory, sortBy, minPrice, maxPrice, mainCategories]);
+  }, [materials, searchTerm, selectedCategory, sortBy, minPrice, maxPrice, mainCategories, attributeFilters]);
 
   const bestSellers = useMemo(() => {
     const pinned = filteredMaterials.filter((m) => m.isBestSeller);
@@ -314,7 +411,7 @@ export default function ProductsPage() {
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
           <aside className="space-y-4">
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm lg:sticky lg:top-24">
+            <div className="rounded-lg border border-slate-200 bg-white shadow-sm lg:sticky lg:top-24 max-h-[calc(100vh-120px)] overflow-y-auto">
               {/* Header */}
               <div className="border-b border-slate-200 px-4 py-3">
                 <div className="flex items-center justify-between">

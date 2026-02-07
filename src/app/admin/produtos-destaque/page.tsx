@@ -27,25 +27,14 @@ export default function ProductsFeaturedPage() {
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Verificar se é admin ou funcionário
-  if (user?.type !== "admin" && user?.type !== "funcionario") {
-    return (
-      <div className="container mx-auto max-w-6xl px-4 py-12">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-800">Apenas administradores e funcionários podem acessar esta página.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Fetch produtos
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/admin/products-featured");
+        const response = await fetch("/api/admin/products-featured", {
+          credentials: "include",
+        });
         const data = (await response.json()) as any;
 
         if (data.success && Array.isArray(data.data)) {
@@ -92,6 +81,7 @@ export default function ProductsFeaturedPage() {
       setSaving(true);
       const response = await fetch("/api/admin/products-featured", {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productIds: Array.from(selectedIds),
@@ -120,6 +110,19 @@ export default function ProductsFeaturedPage() {
     }
   };
 
+  // Verificar se é admin ou funcionário
+  if (user?.type !== "admin" && user?.type !== "funcionario") {
+    return (
+      <div className="container mx-auto max-w-6xl px-4 py-12">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <p className="text-red-800">Apenas administradores e funcionários podem acessar esta página.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-12">
@@ -143,6 +146,12 @@ export default function ProductsFeaturedPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="text-sm font-medium text-slate-700">
+            Produtos selecionados: {selectedIds.size}/8
+            {selectedIds.size === 8 && (
+              <span className="ml-2 text-blue-600">✓ Limite atingido</span>
+            )}
+          </div>
           <div className="flex gap-3">
             <Input
               placeholder="Pesquisar produtos..."
@@ -160,11 +169,18 @@ export default function ProductsFeaturedPage() {
               {filteredProducts.map((product) => (
                 <label
                   key={product.id}
-                  className="flex gap-3 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`flex gap-3 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors ${
+                    selectedIds.size >= 8 && !selectedIds.has(product.id)
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
                 >
                   <Checkbox
                     checked={selectedIds.has(product.id)}
                     onCheckedChange={() => toggleProduct(product.id)}
+                    disabled={
+                      selectedIds.size >= 8 && !selectedIds.has(product.id)
+                    }
                     className="mt-1"
                   />
                   <div className="flex-1 min-w-0">

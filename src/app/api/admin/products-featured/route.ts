@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "~/db";
 import { materialsTable } from "~/db/schema";
-import { validateAdminToken } from "~/lib/auth-middleware";
+import { validateAdminToken } from "~/lib/auth-api";
 
 /**
  * PUT /api/admin/products-featured
- * Atualizar quais produtos aparecem como featured
+ * Atualizar quais produtos sao exibidos como em destaque
  * Body: { productIds: number[] }
+ * Apenas admin/funcionarios podem alterar
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -25,6 +26,13 @@ export async function PUT(request: NextRequest) {
     if (!Array.isArray(productIds)) {
       return NextResponse.json(
         { success: false, message: "productIds deve ser um array" },
+        { status: 400 }
+      );
+    }
+
+    if (productIds.length > 8) {
+      return NextResponse.json(
+        { success: false, message: "Máximo 8 produtos em destaque permitido" },
         { status: 400 }
       );
     }
@@ -93,16 +101,26 @@ export async function GET(request: NextRequest) {
 
     const allProducts = await db.select().from(materialsTable);
 
+    console.log(`📦 Total produtos found: ${allProducts.length}`);
+    if (allProducts.length > 0) {
+      console.log(`📦 Sample produto:`, allProducts[0]);
+    }
+
+    const responseData = allProducts.map((product) => ({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.image,
+      stock: product.stock,
+      isFeatured: product.isFeatured || false,
+    }));
+
+    console.log(`📦 Response data count: ${responseData.length}`);
+    console.log(`📦 Featured produtos: ${responseData.filter((p: any) => p.isFeatured).length}`);
+
     return NextResponse.json({
       success: true,
-      data: allProducts.map((product) => ({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.image,
-        stock: product.stock,
-        isFeatured: product.isFeatured,
-      })),
+      data: responseData,
     });
   } catch (error) {
     console.error("❌ Erro ao buscar produtos:", error);

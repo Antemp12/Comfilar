@@ -15,11 +15,15 @@ export function CatalogsCarousel() {
       try {
         const response = await fetch('/api/catalogs');
         const json = (await response.json()) as { success?: boolean; data?: Catalog[] };
-        if (json.success && json.data) {
+        console.log('📊 Resposta de catálogos:', json);
+        if (json.success && json.data && json.data.length > 0) {
+          console.log('✅ Catálogos carregados:', json.data.length);
           setCatalogs(json.data);
+        } else {
+          console.warn('⚠️ Nenhum catálogo encontrado');
         }
       } catch (error) {
-        console.error('Error fetching catalogs:', error);
+        console.error('❌ Error fetching catalogs:', error);
       } finally {
         setLoading(false);
       }
@@ -28,13 +32,13 @@ export function CatalogsCarousel() {
     fetchCatalogs();
   }, []);
 
-  // Rotação automática a cada 10 segundos
+  // Rotação automática a cada 5 segundos
   useEffect(() => {
     if (catalogs.length === 0) return;
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % catalogs.length);
-    }, 10000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [catalogs.length]);

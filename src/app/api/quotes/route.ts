@@ -6,11 +6,8 @@ import { getUserQuoteRequests, getAllQuoteRequests } from "~/lib/queries/comfila
 
 /**
  * GET /api/quotes
- * Listar orçamentos do utilizador ou todos (admin)
- * Query params:
- * - userId: number (opcional, admin apenas)
- * - limit: number (default 50)
- * - offset: number (default 0)
+ * Listar orcamentos do utilizador ou todos (admin)
+ * Retorna resumo com id, usuario, data e status
  */
 export async function GET(request: NextRequest) {
   try {

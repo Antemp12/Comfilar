@@ -20,31 +20,24 @@ export default function CategoriesFeaturedPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Verificar se é admin ou funcionário
-  if (user?.type !== "admin" && user?.type !== "funcionario") {
-    return (
-      <div className="container mx-auto max-w-4xl px-4 py-12">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-800">Apenas administradores e funcionários podem acessar esta página.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   // Fetch categorias
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/admin/categories-featured");
+        const response = await fetch("/api/admin/categories-featured", {
+          credentials: "include",
+        });
         const data = (await response.json()) as any;
 
-        if (data.success && Array.isArray(data.data)) {
-          setCategories(data.data);
-          const featured = new Set(
-            data.data.filter((cat: Category) => cat.isFeatured).map((cat: Category) => cat.id)
+        // Handle multiple response formats
+        const categoriesList = Array.isArray(data?.data) ? data.data : 
+                               Array.isArray(data) ? data : [];
+        
+        if (categoriesList.length > 0) {
+          setCategories(categoriesList);
+          const featured = new Set<number>(
+            categoriesList.filter((cat: Category) => cat.isFeatured).map((cat: Category) => cat.id)
           );
           setSelectedIds(featured);
         }
@@ -76,6 +69,7 @@ export default function CategoriesFeaturedPage() {
       setSaving(true);
       const response = await fetch("/api/admin/categories-featured", {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           categoryIds: Array.from(selectedIds),
@@ -104,6 +98,19 @@ export default function CategoriesFeaturedPage() {
     }
   };
 
+  // Verificar se é admin ou funcionário
+  if (user?.type !== "admin" && user?.type !== "funcionario") {
+    return (
+      <div className="container mx-auto max-w-4xl px-4 py-12">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <p className="text-red-800">Apenas administradores e funcionários podem acessar esta página.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto max-w-4xl px-4 py-12">
@@ -127,6 +134,12 @@ export default function CategoriesFeaturedPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="text-sm font-medium text-slate-700">
+            Categorias selecionadas: {selectedIds.size}/4
+            {selectedIds.size === 4 && (
+              <span className="ml-2 text-blue-600">✓ Limite atingido</span>
+            )}
+          </div>
           <div className="space-y-3">
             {categories.length === 0 ? (
               <p className="text-slate-500">Nenhuma categoria disponível</p>
@@ -134,11 +147,18 @@ export default function CategoriesFeaturedPage() {
               categories.map((category) => (
                 <label
                   key={category.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={`flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors ${
+                    selectedIds.size >= 4 && !selectedIds.has(category.id)
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
                 >
                   <Checkbox
                     checked={selectedIds.has(category.id)}
                     onCheckedChange={() => toggleCategory(category.id)}
+                    disabled={
+                      selectedIds.size >= 4 && !selectedIds.has(category.id)
+                    }
                   />
                   <span className="flex-1 font-medium text-slate-900">
                     {category.name}

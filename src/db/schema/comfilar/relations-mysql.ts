@@ -118,10 +118,6 @@ export const orderItemsRelations = relations(
       fields: [orderItemsTable.materialId],
       references: [materialsTable.id],
     }),
-    variant: one(materialVariantsTable, {
-      fields: [orderItemsTable.variantId],
-      references: [materialVariantsTable.id],
-    }),
   }),
 );
 

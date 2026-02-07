@@ -18,6 +18,11 @@ async function getUserIdFromRequest(req: NextRequest) {
   return payload.userId as number;
 }
 
+/**
+ * GET /api/cart
+ * Obter carrinho de compras do utilizador autenticado
+ * Retorna lista de itens no carrinho com detalhes
+ */
 export async function GET(req: NextRequest) {
   try {
     const userId = await getUserIdFromRequest(req);

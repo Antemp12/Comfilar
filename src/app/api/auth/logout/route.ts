@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/auth/logout
- * Logout do utilizador (remove cookies)
+ * Fazer logout e limpar sessao do utilizador
+ * Remove cookies de autenticacao
  */
 export async function POST(request: NextRequest) {
   try {

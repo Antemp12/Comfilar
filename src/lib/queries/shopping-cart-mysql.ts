@@ -5,6 +5,7 @@ import {
   utilizadorTable,
   materialsTable,
   materialVariantsTable,
+  categoriesTable,
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
@@ -206,29 +207,63 @@ export async function getAllOrders(options: {
 } = {}) {
   const { status, limit = 50, offset = 0 } = options;
 
-  let query = db.query.ordersTable.findMany({
-    with: {
-      items: {
-        with: {
-          material: {
-            with: {
-              category: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: desc(ordersTable.confirmationDate),
-    limit,
-    offset,
-  });
+  // Query simples sem nested relations (MariaDB não suporta LATERAL JOIN)
+  let baseQuery = db
+    .select()
+    .from(ordersTable)
+    .orderBy(desc(ordersTable.confirmationDate))
+    .limit(limit)
+    .offset(offset);
 
   if (status) {
-    const allOrders = await query;
-    return allOrders.filter((o: { status: string }) => o.status === status);
+    baseQuery = baseQuery.where(eq(ordersTable.status, status as any)) as any;
   }
 
-  return query;
+  const orders = await baseQuery;
+
+  // Buscar items e materials separadamente
+  const ordersWithItems = await Promise.all(
+    orders.map(async (order: any) => {
+      const items = await db
+        .select({
+          id: orderItemsTable.id,
+          orderId: orderItemsTable.orderId,
+          materialId: orderItemsTable.materialId,
+          quantity: orderItemsTable.quantity,
+          unitPrice: orderItemsTable.unitPrice,
+          materialName: materialsTable.name,
+          materialImage: materialsTable.image,
+          materialPrice: materialsTable.price,
+          categoryName: categoriesTable.name,
+        })
+        .from(orderItemsTable)
+        .leftJoin(materialsTable, eq(orderItemsTable.materialId, materialsTable.id))
+        .leftJoin(categoriesTable, eq(materialsTable.categoryId, categoriesTable.id))
+        .where(eq(orderItemsTable.orderId, order.id));
+
+      return {
+        ...order,
+        items: items.map((item: any) => ({
+          id: item.id,
+          orderId: item.orderId,
+          materialId: item.materialId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          material: {
+            id: item.materialId,
+            name: item.materialName,
+            image: item.materialImage,
+            price: item.materialPrice,
+            category: {
+              name: item.categoryName,
+            },
+          },
+        })),
+      };
+    })
+  );
+
+  return ordersWithItems;
 }
 
 /**

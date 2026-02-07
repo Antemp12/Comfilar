@@ -13,7 +13,8 @@ interface RouteParams {
 
 /**
  * PATCH /api/notifications/[id]
- * Marcar notificação como lida
+ * Marcar uma notificacao como lida
+ * Retorna estado atualizado da notificacao
  */
 export async function PATCH(_request: NextRequest, { params }: RouteParams) {
   try {

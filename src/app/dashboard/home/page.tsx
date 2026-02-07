@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "~/lib/auth-context";
 import { RoleGuard } from "~/lib/role-guard";
 import { ProductCard } from "~/ui/components/product-card";
+import { CatalogsCarousel } from "~/ui/components/catalogs-carousel";
 import { Button } from "~/ui/primitives/button";
 import {
   Card,
@@ -75,20 +76,25 @@ export default function DashboardHomePage() {
               // Fetch categorias principais
               const categoriesRes = await fetch('/api/categories?hierarchy=true');
               const categoriesData = await categoriesRes.json() as any;
-              const categoriesList = categoriesData.data || categoriesData || [];
+              
+              // Handle multiple response formats: { data: [...] } or [...]
+              const categoriesList = Array.isArray(categoriesData?.data) ? categoriesData.data : 
+                                     Array.isArray(categoriesData) ? categoriesData : [];
         
-              // Pegar apenas categorias principais (sem pai) marcadas como featured
-              const mainCategories = categoriesList
-                .filter((cat: any) => !cat.parentCategoryId && cat.isFeatured === true)
-                .slice(0, 4)
-                .map((cat: any) => ({
-                  id: cat.id,
-                  name: cat.name,
-                  image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
-                  productCount: 0,
-                }));
-        
-              setCategories(mainCategories);
+              if (categoriesList.length > 0) {
+                // Pegar apenas categorias principais (sem pai) marcadas como featured
+                const mainCategories = categoriesList
+                  .filter((cat: any) => !cat.parentCategoryId && cat.isFeatured === true)
+                  .slice(0, 4)
+                  .map((cat: any) => ({
+                    id: cat.id,
+                    name: cat.name,
+                    image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
+                    productCount: 0,
+                  }));
+          
+                setCategories(mainCategories);
+              }
       } catch (err) {
         console.error("Error fetching featured products:", err);
       } finally {
@@ -113,10 +119,14 @@ export default function DashboardHomePage() {
               <h1 className="text-4xl font-bold text-gray-900">
                 Bem-vindo, {user?.name}! 👋
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">
-                Você está autenticado como <span className="font-medium capitalize">{user?.type}</span>
-              </p>
             </div>
+          </div>
+        </section>
+
+        {/* Catalogs Carousel */}
+        <section className="py-8">
+          <div className="container mx-auto max-w-7xl px-4">
+            <CatalogsCarousel />
           </div>
         </section>
 

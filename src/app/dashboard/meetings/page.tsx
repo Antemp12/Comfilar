@@ -35,6 +35,20 @@ export default function MeetingsPage() {
   const [subject, setSubject] = useState("");
   const [requests, setRequests] = useState<MeetingRequest[]>([]);
 
+  // Dias com reuniões aprovadas
+  const bookedDates = useMemo(() => {
+    return requests
+      .filter((r) => r.status === "aprovado")
+      .map((r) => {
+        // Usar apenas a parte da data (YYYY-MM-DD) sem conversão de timezone
+        const dateStr = r.date.split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        // Criar data local sem conversão de timezone
+        const localDate = new Date(year, month - 1, day);
+        return localDate.toDateString();
+      });
+  }, [requests]);
+
   const timeSlots = useMemo(() => {
     const slots: string[] = [];
     for (let h = 9; h <= 18; h++) {
@@ -65,6 +79,30 @@ export default function MeetingsPage() {
       toast.error("Selecione uma data");
       return;
     }
+    
+    // Validar: assunto obrigatório
+    if (!subject || subject.trim().length === 0) {
+      toast.error("O assunto da reunião é obrigatório");
+      return;
+    }
+    
+    // Validar: não pode ser no passado
+    const now = new Date();
+    const selectedDateTime = new Date(selectedDate);
+    selectedDateTime.setHours(parseInt(startTime.split(":")[0]), parseInt(startTime.split(":")[1]));
+    
+    if (selectedDateTime < now) {
+      toast.error("Não pode agendar reuniões no passado");
+      return;
+    }
+    
+    // Validar: tem que ser pelo menos 24h antes
+    const hoursUntilMeeting = (selectedDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (hoursUntilMeeting < 24) {
+      toast.error("A reunião deve ser agendada com pelo menos 24 horas de antecedência");
+      return;
+    }
+    
     // Validate start < end
     if (startTime >= endTime) {
       toast.error("Horário inválido: fim deve ser após início");
@@ -126,6 +164,22 @@ export default function MeetingsPage() {
   onSelect={setSelectedDate}
   locale={pt}
   weekStartsOn={1}
+  disabled={(date) => {
+    // Desabilitar datas passadas
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date < today;
+  }}
+  modifiers={{
+    booked: (date) => bookedDates.includes(date.toDateString()),
+  }}
+  modifiersStyles={{
+    booked: {
+      backgroundColor: "#22c55e",
+      color: "white",
+      fontWeight: "bold",
+    },
+  }}
 />
 
 </div>
@@ -173,13 +227,15 @@ export default function MeetingsPage() {
                     </div>
 
                     <div className="grid gap-2">
-                      <Label className="text-sm font-semibold text-slate-700">Assunto/Objetivo</Label>
+                      <Label className="text-sm font-semibold text-slate-700">Assunto/Objetivo *</Label>
                       <Input
                         placeholder="Ex.: Revisão de orçamento, Apresentação de projeto..."
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                         className="border-slate-300 focus:ring-blue-500"
+                        required
                       />
+                      <p className="text-xs text-slate-500">Campo obrigatório - descreva o motivo da reunião</p>
                     </div>
 
                     <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
@@ -229,7 +285,11 @@ export default function MeetingsPage() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             <p className="font-semibold text-slate-900">
-                              {format(new Date(m.date), "dd 'de' MMMM")}
+                              {new Date(m.date).toLocaleDateString("pt-PT", {
+                                day: "2-digit",
+                                month: "long",
+                                timeZone: "UTC"
+                              })}
                             </p>
                             <p className="text-sm text-slate-700 flex items-center gap-1 mt-1">
                               <Clock className="w-4 h-4" />

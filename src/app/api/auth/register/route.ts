@@ -6,7 +6,9 @@ import { getUserByEmail } from "~/lib/auth-comfilar";
 
 /**
  * POST /api/auth/register
- * Registar novo cliente
+ * Registar novo cliente com dados pessoais
+ * Body: { name, email, password, type }
+ * Retorna token JWT apos criacao bem-sucedida
  */
 export async function POST(request: NextRequest) {
   try {

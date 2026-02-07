@@ -3,7 +3,8 @@ import { loginUser } from "~/lib/auth-comfilar";
 
 /**
  * POST /api/auth/login
- * Login de utilizador
+ * Autenticar utilizador com email e password
+ * Retorna token JWT para requisicoes subsequentes
  */
 export async function POST(request: NextRequest) {
   try {

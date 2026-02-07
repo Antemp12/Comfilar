@@ -13,8 +13,9 @@ import {
 
 /**
  * POST /api/cart/items
- * Adicionar item ao carrinho
+ * Adicionar item ao carrinho de compras
  * Body: { cartId, materialId, variantId?, quantity }
+ * Valida disponibilidade antes de adicionar
  */
 export async function POST(request: NextRequest) {
   try {

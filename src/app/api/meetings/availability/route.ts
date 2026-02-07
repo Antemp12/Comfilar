@@ -6,10 +6,9 @@ import {
 
 /**
  * GET /api/meetings/availability
- * Obter reuniões do usuário e horários disponíveis
- * Query params:
- * - userId: number (reuniões do usuário)
- * - date: ISO date string (horários disponíveis para este dia)
+ * Verificar disponibilidade para agendar reunioes
+ * Query: userId (reunioes do user), date (horarios disponiveis)
+ * Evita conflitos de agendamento
  */
 export async function GET(request: NextRequest) {
   try {

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { markAllNotificationsAsRead } from "@/lib/notifications-service";
 
 /**
- * PATCH /api/notifications/user/[userId]
- * Marcar todas as notificações como lidas
+ * PATCH /api/notifications/read-all
+ * Marcar TODAS as notificacoes do utilizador como lidas
+ * Query param: userId (numero)
  */
 export async function PATCH(request: NextRequest) {
   try {

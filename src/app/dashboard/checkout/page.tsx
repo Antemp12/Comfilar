@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from "lucide-react";
 
 import { useCart } from "~/lib/hooks/use-cart";
 import { useAuth } from "~/lib/auth-context";
@@ -78,6 +78,12 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Validar notas obrigatórias
+    if (!formData.meetingNotes || formData.meetingNotes.trim().length === 0) {
+      toast.error("Por favor, descreva o motivo da reunião");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -124,13 +130,8 @@ export default function CheckoutPage() {
 
       const result = await response.json();
       
-      // Primeiro mostrar o modal
+      // Mostrar o modal de sucesso (sem limpar carrinho ainda)
       setShowSuccessModal(true);
-      
-      // Depois limpar o carrinho (após 500ms)
-      setTimeout(() => {
-        clearCart();
-      }, 500);
     } catch (error) {
       console.error("Error creating order:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao criar encomenda");
@@ -377,14 +378,29 @@ export default function CheckoutPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="meetingNotes">Notas da Reunião</Label>
+              <Label htmlFor="meetingNotes">Motivo da Reunião *</Label>
               <Textarea
                 id="meetingNotes"
                 value={formData.meetingNotes}
                 onChange={(e) => setFormData({ ...formData, meetingNotes: e.target.value })}
-                placeholder="Assunto ou objetivo da reunião..."
+                placeholder="Descreva o motivo ou objetivo da reunião..."
                 rows={3}
+                required
               />
+              <p className="text-xs text-gray-500">Campo obrigatório</p>
+            </div>
+
+            <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+              <div className="flex gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-yellow-900">
+                  <p className="font-semibold">Pedido de Agendamento</p>
+                  <p className="mt-1">
+                    Este agendamento será enviado como um <strong>pedido de reunião</strong> que precisará ser 
+                    <strong> aprovado pela nossa equipa</strong>. Receberá uma notificação assim que o pedido for analisado.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Summary */}
@@ -437,8 +453,12 @@ export default function CheckoutPage() {
       </div>
 
       {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showSuccessModal} onOpenChange={(open) => {
+        // Impedir fechar clicando fora - só deixar fechar via botão
+        if (!open) return;
+        setShowSuccessModal(open);
+      }}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader className="text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
               <CheckCircle className="h-10 w-10 text-green-600" />
@@ -451,8 +471,26 @@ export default function CheckoutPage() {
               Aguarde pela confirmação. Obrigado!
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-center pt-4">
-            <Button onClick={() => router.push("/dashboard")} className="w-full">
+          <div className="flex flex-col gap-2 pt-4">
+            <Button 
+              onClick={() => {
+                clearCart();
+                setShowSuccessModal(false);
+                router.push("/dashboard/my-orders");
+              }} 
+              className="w-full"
+            >
+              Ver Minhas Encomendas
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                clearCart();
+                setShowSuccessModal(false);
+                router.push("/dashboard");
+              }} 
+              className="w-full"
+            >
               Voltar à Página Inicial
             </Button>
           </div>

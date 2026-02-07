@@ -27,8 +27,15 @@ export async function DELETE(
       );
     }
 
-    // Validar autenticação e permissões
-    const token = getTokenFromHeader(request.headers.get("authorization"));
+    // Tentar obter token do header Authorization
+    const authHeader = request.headers.get("authorization");
+    let token = getTokenFromHeader(authHeader);
+
+    // Se não houver no header, tentar do cookie
+    if (!token) {
+      token = request.cookies.get("auth_token")?.value ?? null;
+    }
+
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Não autenticado" },
@@ -103,8 +110,15 @@ export async function PATCH(
       );
     }
 
-    // Validar autenticação e permissões
-    const token = getTokenFromHeader(request.headers.get("authorization"));
+    // Tentar obter token do header Authorization
+    const authHeader = request.headers.get("authorization");
+    let token = getTokenFromHeader(authHeader);
+
+    // Se não houver no header, tentar do cookie
+    if (!token) {
+      token = request.cookies.get("auth_token")?.value ?? null;
+    }
+
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Não autenticado" },

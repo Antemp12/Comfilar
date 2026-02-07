@@ -1,22 +1,34 @@
+"use client";
+
 import type React from "react";
+import { SidebarProvider, useSidebar } from "~/context/SidebarContext";
+import AppSidebar from "~/ui/components/admin/AppSidebar";
+import Backdrop from "~/ui/components/admin/Backdrop";
 
-import { getCurrentUserOrRedirect } from "~/lib/auth";
+function AdminLayoutContent({ children }: { children: React.ReactNode }) {
+  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
-export default async function AdminLayout({
-  children,
-}: { children: React.ReactNode }) {
-  await getCurrentUserOrRedirect();
-
-  // TODO: implement admin check
-  // const user = await getCurrentUserOrRedirect();
-  // if (!user?.isAdmin) {
-  //   redirect("/");
-  // }
+  const mainContentMargin = isMobileOpen
+    ? "ml-0"
+    : isExpanded || isHovered
+    ? "lg:ml-[270px]"
+    : "lg:ml-[80px]";
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="mb-6 text-3xl font-bold">Admin Dashboard</h1>
-      {children}
+    <div className="min-h-screen">
+      <AppSidebar />
+      <Backdrop />
+      <div className={`flex flex-1 flex-col transition-all duration-300 ${mainContentMargin}`}>
+        <div className="p-4 md:p-6">{children}</div>
+      </div>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </SidebarProvider>
   );
 }

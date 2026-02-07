@@ -13,7 +13,8 @@ interface RouteParams {
 
 /**
  * GET /api/meetings/[id]
- * Obter detalhes de uma reunião
+ * Obter detalhes completo de uma reuniao agendada
+ * Retorna data, descricao e dados do utilizador
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {

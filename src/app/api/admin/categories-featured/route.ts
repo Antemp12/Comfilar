@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "~/db";
 import { categoriesTable } from "~/db/schema";
-import { validateAdminToken } from "~/lib/auth-middleware";
+import { validateAdminToken } from "~/lib/auth-api";
 
 /**
  * PUT /api/admin/categories-featured
@@ -29,6 +29,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (categoryIds.length > 4) {
+      return NextResponse.json(
+        { success: false, message: "Máximo 4 categorias em destaque permitido" },
+        { status: 400 }
+      );
+    }
+
     // Se é funcionário, verificar se o admin atualizou recentemente
     if (user.type === "funcionario") {
       const adminRecentChanges = await db
@@ -48,10 +55,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Remover featured de todas as categorias principais
-    await db
-      .update(categoriesTable)
-      .set({ isFeatured: false })
-      .where(eq(categoriesTable.parentCategoryId, null));
+    const allCategories = await db.select().from(categoriesTable);
+    const mainCategoryIds = allCategories
+      .filter((cat) => cat.parentCategoryId === null || !cat.parentCategoryId)
+      .map((cat) => cat.id);
+
+    for (const categoryId of mainCategoryIds) {
+      await db
+        .update(categoriesTable)
+        .set({ isFeatured: false })
+        .where(eq(categoriesTable.id, categoryId));
+    }
 
     // Marcar como featured apenas as selecionadas
     for (const categoryId of categoryIds) {
@@ -94,18 +108,29 @@ export async function GET(request: NextRequest) {
 
     const allCategories = await db.select().from(categoriesTable);
 
-    // Retornar apenas categorias principais
+    console.log(`📋 Total categories found: ${allCategories.length}`);
+    if (allCategories.length > 0) {
+      console.log(`📋 Sample category:`, allCategories[0]);
+    }
+
+    // Retornar apenas categorias principais (sem parentCategoryId ou null)
     const mainCategories = allCategories.filter(
-      (cat) => !cat.parentCategoryId
+      (cat) => cat.parentCategoryId === null || !cat.parentCategoryId
     );
+
+    console.log(`📋 Main categories found: ${mainCategories.length}`);
+    
+    const responseData = mainCategories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      isFeatured: cat.isFeatured || false,
+    }));
+    
+    console.log(`📋 Response data:`, responseData);
 
     return NextResponse.json({
       success: true,
-      data: mainCategories.map((cat) => ({
-        id: cat.id,
-        name: cat.name,
-        isFeatured: cat.isFeatured,
-      })),
+      data: responseData,
     });
   } catch (error) {
     console.error("❌ Erro ao buscar categorias:", error);

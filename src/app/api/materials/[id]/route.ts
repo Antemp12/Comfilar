@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMaterialWithVariants } from "@/lib/queries/materials-mysql";
+import { db } from "~/db";
+import { materialsTable, materialVariantsTable } from "~/db/schema";
+import { eq } from "drizzle-orm";
 
 interface RouteParams {
   params: Promise<{
@@ -9,7 +12,8 @@ interface RouteParams {
 
 /**
  * GET /api/materials/[id]
- * Obter material com suas variações
+ * Obter material especifico com variacoes e preco
+ * Inclui detalhes completos: categoria, tipo de preco, e variantes
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
@@ -41,6 +45,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
           price: parseFloat(material.price as any),
           stock: material.stock,
           image: material.image,
+          categoryId: material.categoryId,
+          isFeatured: material.isFeatured,
+          attributes: typeof material.attributes === 'string' ? JSON.parse(material.attributes || '{}') : (material.attributes || {}),
           category: {
             id: material.category.id,
             name: material.category.name,
@@ -69,6 +76,125 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     console.error("Erro ao buscar material:", error);
     return NextResponse.json(
       { success: false, message: "Erro ao buscar material" },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * PUT /api/materials/[id]
+ * Atualizar dados de um material (admin apenas)
+ * Pode editar: nome, descricao, preco, stock, categoria, imagem
+ */
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params;
+    const materialId = parseInt(id, 10);
+
+    if (!materialId || isNaN(materialId)) {
+      return NextResponse.json(
+        { success: false, message: "ID de material inválido" },
+        { status: 400 },
+      );
+    }
+
+    const body = await request.json() as any;
+    const { name, description, price, stock, categoryId, image, isFeatured, attributes } = body;
+
+    // Validar campos obrigatórios
+    if (!name || !categoryId) {
+      return NextResponse.json(
+        { success: false, message: "Nome e categoria são obrigatórios" },
+        { status: 400 },
+      );
+    }
+
+    // Atualizar material
+    await db
+      .update(materialsTable)
+      .set({
+        name,
+        description: description || "",
+        price: parseFloat(price) || 0,
+        stock: parseInt(stock) || 0,
+        categoryId: parseInt(categoryId),
+        image: image || "",
+        isFeatured: Boolean(isFeatured),
+        attributes: attributes || {},
+      })
+      .where(eq(materialsTable.id, materialId));
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Material atualizado com sucesso",
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    console.error("Erro ao atualizar material:", error);
+    return NextResponse.json(
+      { success: false, message: "Erro ao atualizar material" },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * DELETE /api/materials/[id]
+ * Soft delete por padrão - marcar como deletado sem remover do BD
+ * Query param: force=true para hard delete (realmente remove)
+ */
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params;
+    const materialId = parseInt(id, 10);
+    const { searchParams } = new URL(request.url);
+    const forceDelete = searchParams.get('force') === 'true';
+
+    if (!materialId || isNaN(materialId)) {
+      return NextResponse.json(
+        { success: false, message: "ID de material inválido" },
+        { status: 400 },
+      );
+    }
+
+    if (forceDelete) {
+      // Hard delete: remover realmente da BD (cuidado com foreign keys!)
+      // Primeiro remove as variantes associadas
+      await db.delete(materialVariantsTable).where(eq(materialVariantsTable.materialId, materialId));
+      
+      // Depois remove o material
+      await db.delete(materialsTable).where(eq(materialsTable.id, materialId));
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Material eliminado permanentemente",
+        },
+        { status: 200 },
+      );
+    } else {
+      // Soft delete: apenas marcar como deletado
+      await db
+        .update(materialsTable)
+        .set({
+          isDeleted: true,
+        })
+        .where(eq(materialsTable.id, materialId));
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Material deletado com sucesso",
+        },
+        { status: 200 },
+      );
+    }
+  } catch (error) {
+    console.error("Erro ao deletar material:", error);
+    return NextResponse.json(
+      { success: false, message: "Erro ao deletar material" },
       { status: 500 },
     );
   }

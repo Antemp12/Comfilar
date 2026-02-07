@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMaterialsWithVariants } from "@/lib/queries/materials-mysql";
+import { db } from "~/db";
+import { materialsTable } from "~/db/schema";
 
 /**
  * GET /api/materials
- * Listar materiais com variações
- * Query params:
- * - categoryId: number
- * - search: string
- * - minPrice: number
- * - maxPrice: number
- * - limit: number (default 50)
- * - offset: number (default 0)
+ * Listar todos os materiais disponiveis com detalhes
+ * Inclui categorias, tipos de preco e variacoes
+ * Filtros: categoryId, search, minPrice, maxPrice, limit (50), offset (0)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -74,6 +71,8 @@ export async function GET(request: NextRequest) {
           image: m.image || "/images/placeholder-product.jpg",
           categoryId: m.categoryId,
           priceTypeId: m.priceTypeId,
+          isFeatured: m.isFeatured || false,
+          attributes: typeof m.attributes === 'string' ? JSON.parse(m.attributes || '{}') : (m.attributes || {}),
           category: m.category ? {
             id: m.category.id,
             name: m.category.name,
@@ -108,6 +107,52 @@ export async function GET(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return NextResponse.json(
       { success: false, message: "Erro ao listar materiais", error: errorMessage },
+      { status: 500 },
+    );
+  }
+}
+
+/**
+ * POST /api/materials
+ * Criar novo material
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json() as any;
+    const { name, description, price, stock, categoryId, image, isFeatured, attributes } = body;
+
+    // Validar campos obrigatórios
+    if (!name || !categoryId) {
+      return NextResponse.json(
+        { success: false, message: "Nome e categoria são obrigatórios" },
+        { status: 400 },
+      );
+    }
+
+    // Inserir material
+    const result = await db.insert(materialsTable).values({
+      name,
+      description: description || "",
+      price: parseFloat(price) || 0,
+      stock: parseInt(stock) || 0,
+      categoryId: parseInt(categoryId),
+      image: image || "",
+      isFeatured: Boolean(isFeatured),
+      attributes: attributes || {},
+    });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Material criado com sucesso",
+        id: result.insertId,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("Erro ao criar material:", error);
+    return NextResponse.json(
+      { success: false, message: "Erro ao criar material" },
       { status: 500 },
     );
   }

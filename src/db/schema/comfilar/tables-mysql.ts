@@ -26,6 +26,7 @@ export const categoriesTable = mysqlTable("categoria", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("nome", { length: 100 }).notNull(),
   parentCategoryId: int("id_categoria_pai").references((): any => categoriesTable.id, { onDelete: "cascade" }),
+  image: text("image"),
   isFeatured: boolean("is_featured").default(false),
   managedBy: varchar("managed_by", { length: 20 }).default("admin"), // admin ou funcionario
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
@@ -45,8 +46,6 @@ export const categoryAttributesTable = mysqlTable("category_attributes", {
 
 // ============================================
 // MATERIALS TABLE (material)
-// ============================================// ============================================
-// MATERIALS TABLE (material)
 // ============================================
 export const materialsTable = mysqlTable("material", {
   id: int("id").primaryKey().autoincrement(),
@@ -61,6 +60,8 @@ export const materialsTable = mysqlTable("material", {
   priceTypeId: int("id_tipo_preco").references(() => priceTypesTable.id),
   isFeatured: boolean("is_featured").default(false),
   managedBy: varchar("managed_by", { length: 20 }).default("admin"), // admin ou funcionario
+  attributes: json("attributes").$type<Record<string, string>>().default({}), // Atributos dinâmicos por categoria (ex: cor, diâmetro, etc)
+  isDeleted: boolean("is_deleted").default(false), // Soft delete para preservar referências em pedidos
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
@@ -146,6 +147,9 @@ export const quoteItemsTable = mysqlTable(
 // ============================================
 export const ordersTable = mysqlTable("encomenda", {
   id: int("id").primaryKey().autoincrement(),
+  userId: int("id_utilizador")
+    .notNull()
+    .references(() => utilizadorTable.id, { onDelete: "cascade" }),
   quoteId: int("id_pedido_orca")
     .notNull()
     .unique()
@@ -172,13 +176,8 @@ export const orderItemsTable = mysqlTable("encomenda_item", {
   materialId: int("id_material")
     .notNull()
     .references(() => materialsTable.id),
-  variantId: int("id_material_variant").references(
-    () => materialVariantsTable.id,
-  ),
   quantity: int("quantidade").notNull().default(1),
   unitPrice: decimal("preco_unitario", { precision: 10, scale: 2 }).notNull(),
-  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // ============================================

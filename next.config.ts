@@ -17,6 +17,8 @@ export default {
       { hostname: "i.etsystatic.com", protocol: "https" },
       { hostname: "scontent.fopo3-1.fna.fbcdn.net", protocol: "https" },
       { hostname: "**.fbcdn.net", protocol: "https" },
+      { hostname: "encrypted-tbn0.gstatic.com", protocol: "https" },
+      { hostname: "**.gstatic.com", protocol: "https" },
     ],
   },
 } satisfies NextConfig;

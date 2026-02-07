@@ -7,12 +7,20 @@ import { createUser } from "@/lib/auth-comfilar";
 
 /**
  * GET /api/admin/users
- * Listar todos os utilizadores (admin only)
+ * Listar todos os utilizadores do sistema (admin only)
+ * Retorna lista completa com nomes, emails, e tipos de utilizador
  */
 export async function GET(request: NextRequest) {
   try {
-    // Validar autenticação e permissões
-    const token = getTokenFromHeader(request.headers.get("authorization"));
+    // Tentar obter token do header Authorization
+    const authHeader = request.headers.get("authorization");
+    let token = getTokenFromHeader(authHeader);
+
+    // Se não houver no header, tentar do cookie
+    if (!token) {
+      token = request.cookies.get("auth_token")?.value ?? null;
+    }
+
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Não autenticado" },
@@ -67,8 +75,15 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Validar autenticação e permissões
-    const token = getTokenFromHeader(request.headers.get("authorization"));
+    // Tentar obter token do header Authorization
+    const authHeader = request.headers.get("authorization");
+    let token = getTokenFromHeader(authHeader);
+
+    // Se não houver no header, tentar do cookie
+    if (!token) {
+      token = request.cookies.get("auth_token")?.value ?? null;
+    }
+
     if (!token) {
       return NextResponse.json(
         { success: false, message: "Não autenticado" },

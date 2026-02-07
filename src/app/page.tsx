@@ -57,42 +57,59 @@ export default function HomePage() {
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
-          // Fetch produtos em destaque
+        // Fetch produtos em destaque
         const response = await fetch('/api/materials?limit=50');
+        if (!response.ok) {
+          console.error('Failed to fetch materials:', response.status);
+          setLoading(false);
+          return;
+        }
         const data = await response.json() as any;
         
         const featured = (data.data || [])
           .filter((m: any) => m.isFeatured === true)
           .slice(0, 8)
           .map((m: any) => ({
-          id: m.id.toString(),
-          name: m.name,
-          category: m.category?.name || 'Diversos',
-          price: m.price,
-          image: m.image || 'https://via.placeholder.com/400x400?text=' + m.name,
-          inStock: m.stock > 0,
-          rating: 4.5,
-        }));
+            id: m.id.toString(),
+            name: m.name,
+            category: m.category?.name || 'Diversos',
+            price: m.price,
+            image: m.image || 'https://via.placeholder.com/400x400?text=' + m.name,
+            inStock: m.stock > 0,
+            rating: 4.5,
+          }));
         
         setFeaturedProducts(featured);
 
-              // Fetch categorias principais
-              const categoriesRes = await fetch('/api/categories?hierarchy=true');
-              const categoriesData = await categoriesRes.json() as any;
-              const categoriesList = categoriesData.data || categoriesData || [];
+        // Fetch categorias principais
+        const categoriesRes = await fetch('/api/categories?hierarchy=true');
+        if (!categoriesRes.ok) {
+          console.error('Failed to fetch categories:', categoriesRes.status);
+          setLoading(false);
+          return;
+        }
+        const categoriesData = await categoriesRes.json() as any;
         
-              // Pegar apenas categorias principais (sem pai) marcadas como featured
-              const mainCategories = categoriesList
-                .filter((cat: any) => !cat.parentCategoryId && cat.isFeatured === true)
-                .slice(0, 4)
-                .map((cat: any) => ({
-                  id: cat.id,
-                  name: cat.name,
-                  image: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=60&ixlib=rb-4.0.3',
-                  productCount: 0, // Pode ser calculado depois se necessário
-                }));
-        
-              setCategories(mainCategories);
+        // Handle multiple response formats: { data: [...] } or [...]
+        const categoriesList = Array.isArray(categoriesData?.data) ? categoriesData.data : 
+                               Array.isArray(categoriesData) ? categoriesData : [];
+  
+        if (categoriesList.length === 0) {
+          setCategories([]);
+        } else {
+          // Pegar apenas categorias principais (sem pai) marcadas como featured
+          const mainCategories = categoriesList
+            .filter((cat: any) => !cat.parentCategoryId && cat.isFeatured === true)
+            .slice(0, 4)
+            .map((cat: any) => ({
+              id: cat.id,
+              name: cat.name,
+              image: cat.image || 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=85&fm=webp',
+              productCount: 0,
+            }));
+    
+          setCategories(mainCategories);
+        }
       } catch (err) {
         console.error('Error fetching featured products:', err);
       } finally {

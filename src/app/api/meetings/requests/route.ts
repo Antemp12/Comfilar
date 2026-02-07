@@ -4,7 +4,11 @@ import { meetingRequestsTable } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getTokenFromHeader, validateToken } from "~/lib/auth-comfilar";
 
-// GET /api/meetings/requests - list current user's requests
+/**
+ * GET /api/meetings/requests
+ * Listar todos os pedidos de reuniao do utilizador autenticado
+ * Requer token JWT valido
+ */
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -25,7 +29,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/meetings/requests - create a new request
+/**
+ * POST /api/meetings/requests
+ * Criar novo pedido de reuniao com data e hora
+ * Body: { date, start, end, subject? }
+ */
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -47,7 +55,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Fim deve ser após início" }, { status: 400 });
     }
 
+    console.log("📅 Creating meeting with date:", date, "start:", start, "end:", end);
+    
+    // Se a data já vem em formato ISO, usar diretamente
     const jsDate = new Date(date);
+    
+    console.log("📅 Parsed date object:", jsDate);
+    console.log("📅 About to insert into DB with values:", {
+      userId: payload.userId,
+      date: jsDate,
+      startTime: start,
+      endTime: end,
+      subject: subject || null,
+      status: "pendente",
+    });
 
     await db.insert(meetingRequestsTable).values({
       userId: payload.userId,

@@ -68,9 +68,9 @@ export const Notifications: React.FC<NotificationsProps> = ({
         className={"flex flex-col items-center justify-center py-6 text-center"}
       >
         <Bell className="mb-2 h-10 w-10 text-muted-foreground/50" />
-        <p className="text-sm font-medium">No notifications yet</p>
+        <p className="text-sm font-medium">Nenhuma notificação ainda</p>
         <p className="text-xs text-muted-foreground">
-          When you get notifications, they'll show up here
+          Quando receber notificações, elas aparecerão aqui
         </p>
       </div>
     );

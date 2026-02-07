@@ -11,6 +11,7 @@ import { CartProvider } from "~/lib/hooks/use-cart";
 import { FavoritesProvider } from "~/lib/hooks/use-favorites";
 import { AuthProvider } from "~/lib/auth-context";
 import "~/css/globals.css";
+import { ConditionalLayout } from "~/ui/components/conditional-layout";
 import { Footer } from "~/ui/components/footer";
 import { Header } from "~/ui/components/header/header";
 import { ThemeProvider } from "~/ui/components/theme-provider";
@@ -58,10 +59,12 @@ export default function RootLayout({
                 enableSystem
               >
                 {/* <NextSSRPlugin routerConfig={extractRouterConfig(ourFileRouter)} /> */}
-                <Header showAuth={true} />
-                <main className={`flex min-h-screen flex-col`}>{children}</main>
-                <Footer />
-                <Toaster />
+                <ConditionalLayout
+                  header={<Header showAuth={true} />}
+                  footer={<Footer />}
+                >
+                  {children}
+                </ConditionalLayout>
               </ThemeProvider>
             </FavoritesProvider>
           </CartProvider>

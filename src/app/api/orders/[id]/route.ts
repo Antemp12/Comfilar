@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+import { ordersTable, quoteRequestsTable } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import {
   getOrderWithItems,
   updateOrderStatus,
   calculateOrderTotal,
 } from "@/lib/queries/shopping-cart-mysql";
 import {
+  notifyOrderConfirmed,
   notifyOrderInPreparation,
   notifyOrderShipped,
   notifyOrderDelivered,
@@ -44,7 +48,8 @@ type OrderItem = {
 
 /**
  * GET /api/orders/[id]
- * Obter detalhe de um pedido com itens
+ * Obter detalhe completo de uma encomenda
+ * Retorna status, total, itens com precos, materiais e variantes
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
@@ -165,15 +170,25 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Enviar notificação baseada no novo status
-    // TODO: Obter userId real do contexto da sessão
-    // const userId = ... // from auth context
-    // if (status === "preparacao") {
-    //   await notifyOrderInPreparation(userId, parseInt(id, 10));
-    // } else if (status === "enviado") {
-    //   await notifyOrderShipped(userId, parseInt(id, 10));
-    // } else if (status === "entregue") {
-    //   await notifyOrderDelivered(userId, parseInt(id, 10));
-    // }
+    const orderRows = await db
+      .select({ userId: quoteRequestsTable.userId })
+      .from(ordersTable)
+      .leftJoin(quoteRequestsTable, eq(ordersTable.quoteId, quoteRequestsTable.id))
+      .where(eq(ordersTable.id, parseInt(id, 10)))
+      .limit(1);
+
+    const userId = orderRows[0]?.userId;
+    if (userId) {
+      if (status === "processamento") {
+        await notifyOrderConfirmed(userId, parseInt(id, 10));
+      } else if (status === "preparacao") {
+        await notifyOrderInPreparation(userId, parseInt(id, 10));
+      } else if (status === "enviado") {
+        await notifyOrderShipped(userId, parseInt(id, 10));
+      } else if (status === "entregue") {
+        await notifyOrderDelivered(userId, parseInt(id, 10));
+      }
+    }
 
     return NextResponse.json(
       {

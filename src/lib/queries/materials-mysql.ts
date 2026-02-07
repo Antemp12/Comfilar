@@ -22,7 +22,10 @@ export async function getMaterialWithVariants(
   const material = await db
     .select()
     .from(materialsTable)
-    .where(eq(materialsTable.id, id))
+    .where(and(
+      eq(materialsTable.id, id),
+      eq(materialsTable.isDeleted, false) // Filtrar deletados
+    ))
     .leftJoin(
       categoriesTable,
       eq(materialsTable.categoryId, categoriesTable.id),
@@ -66,7 +69,7 @@ export async function getMaterialsWithVariants(
   const { categoryId, search, minPrice, maxPrice, limit = 50, offset = 0 } =
     options || {};
 
-  const conditions = [];
+  const conditions = [eq(materialsTable.isDeleted, false)]; // Sempre filtrar deletados
 
   if (categoryId) {
     conditions.push(eq(materialsTable.categoryId, categoryId));
@@ -81,7 +84,7 @@ export async function getMaterialsWithVariants(
   const materials = await db
     .select()
     .from(materialsTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .leftJoin(
       categoriesTable,
       eq(materialsTable.categoryId, categoriesTable.id),
@@ -115,6 +118,55 @@ export async function getMaterialsWithVariants(
     } catch (error) {
       console.warn(`⚠️ Could not fetch variants for material ${item.material.id}:`, error instanceof Error ? error.message : 'Unknown error');
       // Continue without variants if table doesn't exist
+      variants = [];
+    }
+
+    result.push({
+      ...item.material,
+      category: item.categoria || { id: 0, name: "Uncategorized" },
+      priceType: item.tipo_preco || null,
+      variants,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Buscar materiais em destaque
+ */
+export async function getFeaturedMaterials(
+  limit: number = 6,
+): Promise<MaterialWithCategory[]> {
+  const materials = await db
+    .select()
+    .from(materialsTable)
+    .where(and(
+      eq(materialsTable.isFeatured, true),
+      eq(materialsTable.isDeleted, false)
+    ))
+    .leftJoin(
+      categoriesTable,
+      eq(materialsTable.categoryId, categoriesTable.id),
+    )
+    .leftJoin(
+      priceTypesTable,
+      eq(materialsTable.priceTypeId, priceTypesTable.id),
+    )
+    .orderBy(desc(materialsTable.updatedAt))
+    .limit(limit);
+
+  const result: MaterialWithCategory[] = [];
+
+  for (const item of materials) {
+    let variants: MaterialVariant[] = [];
+    
+    try {
+      variants = await db
+        .select()
+        .from(materialVariantsTable)
+        .where(eq(materialVariantsTable.materialId, item.material.id));
+    } catch (error) {
       variants = [];
     }
 

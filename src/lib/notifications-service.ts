@@ -86,59 +86,67 @@ async function sendNotificationEmail(data: NotificationData) {
       return;
     }
 
-    // Usar Resend (já está na deps)
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // Email apenas se RESEND_API_KEY estiver configurado
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
 
-    const emailTemplates: { [key in NotificationType]: { subject: string } } =
-      {
-        pedido_criado: {
-          subject: "Pedido criado com sucesso",
-        },
-        pedido_confirmado: {
-          subject: "Pedido confirmado",
-        },
-        pedido_preparacao: {
-          subject: "Seu pedido está em preparação",
-        },
-        pedido_enviado: {
-          subject: "Seu pedido foi enviado",
-        },
-        pedido_entregue: {
-          subject: "Seu pedido foi entregue",
-        },
-        reuniao_agendada: {
-          subject: "Reunião agendada com sucesso",
-        },
-        reuniao_cancelada: {
-          subject: "Reunião cancelada",
-        },
-        sistema: {
-          subject: "Notificação do sistema",
-        },
-      };
+        const emailTemplates: { [key in NotificationType]: { subject: string } } =
+          {
+            pedido_criado: {
+              subject: "Pedido criado com sucesso",
+            },
+            pedido_confirmado: {
+              subject: "Pedido confirmado",
+            },
+            pedido_preparacao: {
+              subject: "Seu pedido está em preparação",
+            },
+            pedido_enviado: {
+              subject: "Seu pedido foi enviado",
+            },
+            pedido_entregue: {
+              subject: "Seu pedido foi entregue",
+            },
+            reuniao_agendada: {
+              subject: "Reunião agendada com sucesso",
+            },
+            reuniao_cancelada: {
+              subject: "Reunião cancelada",
+            },
+            sistema: {
+              subject: "Notificação do sistema",
+            },
+          };
 
-    const template = emailTemplates[data.type];
+        const template = emailTemplates[data.type];
 
-    await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Comfilar <onboarding@resend.dev>",
-      to: user.email,
-      subject: template.subject,
-      html: `
-        <h2>${data.title}</h2>
-        <p>${data.message}</p>
-        <hr />
-        <p style="color: #666; font-size: 12px;">
-          Comfilar - Materiais de Construção
-        </p>
-      `,
-    });
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL || "Comfilar <onboarding@resend.dev>",
+          to: user.email,
+          subject: template.subject,
+          html: `
+            <h2>${data.title}</h2>
+            <p>${data.message}</p>
+            <hr />
+            <p style="color: #666; font-size: 12px;">
+              Comfilar - Materiais de Construção
+            </p>
+          `,
+        });
 
-    // Marcar como enviado
-    await db
-      .update(notificationsTable)
-      .set({ sentEmail: true })
-      .where(eq(notificationsTable.userId, data.userId));
+        // Marcar como enviado
+        await db
+          .update(notificationsTable)
+          .set({ sentEmail: true })
+          .where(eq(notificationsTable.userId, data.userId));
+      } catch (error) {
+        console.error("Erro ao enviar notificação por email:", error);
+      }
+    } else {
+      console.log("RESEND_API_KEY não configurada - email não será enviado");
+    }
   } catch (error) {
     console.error("Erro ao enviar notificação por email:", error);
   }

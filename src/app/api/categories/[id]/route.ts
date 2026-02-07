@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 
 /**
  * GET /api/categories/[id]
- * Obter detalhes de uma categoria
+ * Obter informacoes detalhada de uma categoria especifica
+ * Retorna nome, descricao e data de criacao
  */
 export async function GET(
   request: NextRequest,

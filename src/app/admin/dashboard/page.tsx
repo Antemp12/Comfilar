@@ -1,133 +1,232 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '~/ui/primitives/button';
-import { useAuth } from '~/lib/auth-context';
-import { RoleGuard } from '~/lib/role-guard';
+import { 
+  PackageIcon, 
+  UsersIcon, 
+  ShoppingCartIcon, 
+  FileTextIcon,
+  CalendarIcon,
+  ChartIcon 
+} from '~/ui/icons/admin-icons';
+import { db } from '~/db';
+import { utilizadorTable, materialsTable, ordersTable, quoteRequestsTable } from '~/db/schema';
+import { eq } from 'drizzle-orm';
 
-export default function AdminDashboardPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+export default async function AdminDashboardPage() {
+  // Buscar contagens
+  const utilizadores = await db.select().from(utilizadorTable);
+  const totalUsers = utilizadores.length;
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  const materiais = await db.select().from(materialsTable).where(eq(materialsTable.isDeleted, false));
+  const totalMaterials = materiais.length;
 
+  // Contar encomendas ativas (processamento ou preparacao)
+  const encomendasAtivas = await db.select().from(ordersTable).where(
+    eq(ordersTable.status, 'processamento')
+  );
+  const totalActiveOrders = encomendasAtivas.length;
+
+  // Contar orçamentos pendentes
+  const orcamentosPendentes = await db.select().from(quoteRequestsTable).where(
+    eq(quoteRequestsTable.status, 'pendente')
+  );
+  const totalPendingQuotes = orcamentosPendentes.length;
   return (
-    <RoleGuard allowedRoles={['admin']}>
-      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
-        {/* Navbar */}
-        <nav className="border-b bg-white/80 backdrop-blur">
-          <div className="container mx-auto max-w-7xl px-4 py-4 flex justify-between items-center">
-            <Link href="/admin" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
-              <span className="font-bold text-lg text-gray-900">Comfilar - Admin</span>
-            </Link>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Visão geral da plataforma Comfilar
+        </p>
+      </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="font-medium text-gray-900">{user?.name}</p>
-                <p className="text-sm text-gray-600">{user?.email}</p>
-              </div>
-              <Button variant="outline" onClick={handleLogout}>
-                Sair
-              </Button>
+      {/* Métricas Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Total Utilizadores
+              </p>
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                {totalUsers}
+              </p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/20">
+              <UsersIcon />
             </div>
           </div>
-        </nav>
+        </div>
 
-        {/* Dashboard Content */}
-        <div className="container mx-auto max-w-7xl px-4 py-16">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900">Dashboard Admin 👨‍💼</h1>
-            <p className="text-gray-600 mt-2">
-              Painel de administração - {user?.name}
-            </p>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Materiais
+              </p>
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                {totalMaterials}
+              </p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/20">
+              <PackageIcon />
+            </div>
           </div>
+        </div>
 
-          {/* Quick Actions */}
-          <div className="grid md:grid-cols-3 gap-6 mb-12">
-            <Link href="/admin/users" className="group">
-              <div className="p-8 rounded-lg border bg-white hover:shadow-lg hover:border-purple-200 transition-all">
-                <div className="text-4xl mb-4">👥</div>
-                <h3 className="font-semibold text-lg mb-2">Utilizadores</h3>
-                <p className="text-gray-600 mb-4">
-                  Gerir utilizadores do sistema
-                </p>
-                <span className="text-purple-600 group-hover:underline">Gerir →</span>
-              </div>
-            </Link>
-
-            <Link href="/admin/materials" className="group">
-              <div className="p-8 rounded-lg border bg-white hover:shadow-lg hover:border-purple-200 transition-all">
-                <div className="text-4xl mb-4">📦</div>
-                <h3 className="font-semibold text-lg mb-2">Materiais</h3>
-                <p className="text-gray-600 mb-4">
-                  Gerir catálogo de materiais
-                </p>
-                <span className="text-purple-600 group-hover:underline">Ver catálogo →</span>
-              </div>
-            </Link>
-
-            <Link href="/admin/categorias-destaque" className="group">
-              <div className="p-8 rounded-lg border bg-white hover:shadow-lg hover:border-purple-200 transition-all">
-                <div className="text-4xl mb-4">⭐</div>
-                <h3 className="font-semibold text-lg mb-2">Categorias Destaque</h3>
-                <p className="text-gray-600 mb-4">
-                  Escolher 4 categorias para a página inicial
-                </p>
-                <span className="text-purple-600 group-hover:underline">Gerir →</span>
-              </div>
-            </Link>
-
-            <Link href="/admin/produtos-destaque" className="group">
-              <div className="p-8 rounded-lg border bg-white hover:shadow-lg hover:border-purple-200 transition-all">
-                <div className="text-4xl mb-4">🎯</div>
-                <h3 className="font-semibold text-lg mb-2">Produtos Destaque</h3>
-                <p className="text-gray-600 mb-4">
-                  Escolher até 8 produtos para a página inicial
-                </p>
-                <span className="text-purple-600 group-hover:underline">Gerir →</span>
-              </div>
-            </Link>
-
-            <Link href="/admin/reports" className="group">
-              <div className="p-8 rounded-lg border bg-white hover:shadow-lg hover:border-purple-200 transition-all">
-                <div className="text-4xl mb-4">📊</div>
-                <h3 className="font-semibold text-lg mb-2">Relatórios</h3>
-                <p className="text-gray-600 mb-4">
-                  Visualizar estatísticas e relatórios
-                </p>
-                <span className="text-purple-600 group-hover:underline">Ver relatórios →</span>
-              </div>
-            </Link>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Encomendas Ativas
+              </p>
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                {totalActiveOrders}
+              </p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/20">
+              <ShoppingCartIcon />
+            </div>
           </div>
+        </div>
 
-          {/* System Stats */}
-          <div className="grid md:grid-cols-4 gap-6">
-            <div className="p-6 rounded-lg border bg-white">
-              <p className="text-sm text-gray-600 mb-1">Total Utilizadores</p>
-              <p className="text-3xl font-bold text-gray-900">0</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Orçamentos Pendentes
+              </p>
+              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                {totalPendingQuotes}
+              </p>
             </div>
-            <div className="p-6 rounded-lg border bg-white">
-              <p className="text-sm text-gray-600 mb-1">Materiais</p>
-              <p className="text-3xl font-bold text-gray-900">0</p>
-            </div>
-            <div className="p-6 rounded-lg border bg-white">
-              <p className="text-sm text-gray-600 mb-1">Orçamentos Pendentes</p>
-              <p className="text-3xl font-bold text-gray-900">0</p>
-            </div>
-            <div className="p-6 rounded-lg border bg-white">
-              <p className="text-sm text-gray-600 mb-1">Encomendas Ativas</p>
-              <p className="text-3xl font-bold text-gray-900">0</p>
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/20">
+              <FileTextIcon />
             </div>
           </div>
         </div>
       </div>
-    </RoleGuard>
+
+      {/* Ações Rápidas */}
+      <div>
+        <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+          Ações Rápidas
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Link
+            href="/admin/materials"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <PackageIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Gerir Materiais
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Adicionar e editar produtos
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/users"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <UsersIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Gerir Utilizadores
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Ver e editar utilizadores
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/orders"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ShoppingCartIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Ver Encomendas
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Gerir pedidos de clientes
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/quotes"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileTextIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Gerir Orçamentos
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Responder a pedidos
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/meetings"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CalendarIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Agendar Reuniões
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Calendário de reuniões
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/admin/reports"
+            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ChartIcon />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">
+                  Ver Relatórios
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Análise e estatísticas
+                </p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

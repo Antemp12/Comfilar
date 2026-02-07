@@ -1,10 +1,13 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 import { formatCurrency, formatQuantityWithUnit } from "~/lib/comfilar-utils-mysql";
 import { getMaterialWithVariants } from "~/lib/queries/materials-mysql";
 import { Badge } from "~/ui/primitives/badge";
 import { Separator } from "~/ui/primitives/separator";
+import { Button } from "~/ui/primitives/button";
 
 import { ProductActions } from "./product-actions";
 
@@ -44,6 +47,21 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Back Button */}
+      <div className="mb-6">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="gap-2"
+        >
+          <Link href="/products">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar aos Produtos
+          </Link>
+        </Button>
+      </div>
+
       <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border bg-muted">
@@ -64,6 +82,24 @@ export default async function ProductPage({ params }: PageProps) {
                 "Este produto não tem descrição detalhada ainda."}
             </p>
           </div>
+
+          {(product as any).attributes && Object.keys((product as any).attributes).length > 0 && (
+            <div className="rounded-2xl border bg-card p-6 shadow-sm">
+              <h2 className="text-lg font-semibold">Especificações</h2>
+              <div className="mt-4 space-y-3">
+                {Object.entries((product as any).attributes).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between border-b pb-3 last:border-b-0 last:pb-0">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {key}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {value as string}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {Object.keys(variantsByName).length > 0 && (
             <div className="rounded-2xl border bg-card p-6 shadow-sm">

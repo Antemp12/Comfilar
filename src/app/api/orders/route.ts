@@ -3,12 +3,9 @@ import { getAllOrders } from "@/lib/queries/shopping-cart-mysql";
 
 /**
  * GET /api/orders
- * Listar pedidos com filtros opcionais
- * Query params:
- * - status: processamento|preparacao|enviado|entregue
- * - userId: number
- * - limit: number (default 50)
- * - offset: number (default 0)
+ * Listar todas as encomendas com filtros opcionais
+ * Retorna lista de encomendas com status, data, e itens
+ * Query params: status, userId, limit (50), offset (0)
  */
 export async function GET(request: NextRequest) {
   try {

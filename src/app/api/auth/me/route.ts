@@ -3,7 +3,8 @@ import { getTokenFromHeader, validateToken, getUserById } from "~/lib/auth-comfi
 
 /**
  * GET /api/auth/me
- * Retorna informações do utilizador autenticado
+ * Obter dados do utilizador atualmente autenticado
+ * Requer token JWT valido, retorna perfil completo
  */
 export async function GET(request: NextRequest) {
   try {

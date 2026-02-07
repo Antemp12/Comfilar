@@ -10,7 +10,8 @@ import { notifyOrderCreated } from "@/lib/notifications-service";
 
 /**
  * POST /api/cart/checkout
- * Finalizar carrinho e criar pedido
+ * Finalizar carrinho e criar encomenda
+ * Valida itens, calcula total, cria registro de pedido
  * Body: { cartId }
  */
 export async function POST(request: NextRequest) {

@@ -30,7 +30,9 @@ export async function GET(
         data: attributes.map((attr: typeof attributes[0]) => ({
           id: attr.id,
           name: attr.attributeName,
-          values: attr.attributeValues,
+          values: Array.isArray(attr.attributeValues) 
+            ? attr.attributeValues 
+            : JSON.parse(attr.attributeValues as string),
         })),
       },
       { status: 200 }

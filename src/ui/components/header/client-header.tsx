@@ -27,8 +27,9 @@ export function ClientHeader() {
   };
 
   const clientNavigation = [
-    { href: '/dashboard/home', name: 'Home' },
+    { href: '/dashboard/home', name: 'Início' },
     { href: '/dashboard/products', name: 'Produtos' },
+    { href: '/dashboard/my-orders', name: 'Minhas Encomendas' },
     { href: '/dashboard/favorites', name: 'Favoritos' },
     { href: '/dashboard/meetings', name: 'Agenda' },
   ];

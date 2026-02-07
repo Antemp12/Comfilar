@@ -3,11 +3,9 @@ import { getAllMeetings, getUpcomingMeetings } from "@/lib/queries/meetings-mysq
 
 /**
  * GET /api/meetings
- * Listar reuniões (admin/funcionarios)
- * Query params:
- * - upcoming: boolean (próximas 7 dias)
- * - limit: number (default 50)
- * - offset: number (default 0)
+ * Listar todas as reunioes agendadas
+ * Filtro upcoming=true mostra reunioes dos proximos 7 dias
+ * Retorna lista com dados de usuario e data/descricao
  */
 export async function GET(request: NextRequest) {
   try {
@@ -69,8 +67,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/meetings
- * Criar nova reunião
+ * Criar nova reuniao (apenas admin/funcionarios)
  * Body: { userId: number, date: ISO string, description?: string }
+ * Retorna dados da reuniao criada com ID gerado
  */
 export async function POST(request: NextRequest) {
   try {
