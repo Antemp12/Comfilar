@@ -56,16 +56,16 @@ export async function POST(req: NextRequest) {
 
     // Extrair dados do corpo da requisição (items, endereço, etc)
     const body = (await req.json()) as {
-      items?: unknown;
-      deliveryAddress?: unknown;
-      deliveryCity?: unknown;
-      deliveryPostalCode?: unknown;
-      contactPhone?: unknown;
-      notes?: unknown;
-      total?: unknown;
-      meetingDate?: unknown;
-      meetingTime?: unknown;
-      meetingNotes?: unknown;
+      items?: Array<{ materialId: number; quantity: number; price: number }>;
+      deliveryAddress?: string;
+      deliveryCity?: string;
+      deliveryPostalCode?: string;
+      contactPhone?: string;
+      notes?: string;
+      total?: number;
+      meetingDate?: string;
+      meetingTime?: string;
+      meetingNotes?: string;
     };
     const {
       items,
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       // ─────────────────────────────────────────────────────────────────────────────
       if (Array.isArray(items) && items.length > 0) {
         console.log("Step 2: Creating quote items...");
-        const quoteItemsData = items.map((item: any) => ({
+        const quoteItemsData = items.map((item) => ({
           quoteId,
           materialId: item.materialId,
           quantity: item.quantity,
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       // Criar items da encomenda
       if (Array.isArray(items) && items.length > 0) {
         console.log("Step 4: Creating order items...");
-        const orderItemsData = items.map((item: any) => ({
+        const orderItemsData = items.map((item) => ({
           orderId: Number(orderId),
           materialId: item.materialId,
           quantity: item.quantity,
@@ -154,11 +154,11 @@ export async function POST(req: NextRequest) {
         console.log("Received meetingDate:", meetingDate);
         console.log("Received meetingTime:", meetingTime);
         
-        const [hours, minutes] = meetingTime.split(':');
+        const [hours, minutes] = (meetingTime as string).split(':');
         
         // Criar data corretamente sem conversão de timezone
         // meetingDate vem como "2026-02-15" do input type="date"
-        const [year, month, day] = meetingDate.split('-').map(Number);
+        const [year, month, day] = (meetingDate as string).split('-').map(Number);
         
         // Criar Date object em UTC para corresponder exatamente à data/hora escolhida
         const scheduledDate = new Date(Date.UTC(year, month - 1, day, parseInt(hours), parseInt(minutes), 0, 0));
