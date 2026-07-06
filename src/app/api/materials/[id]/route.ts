@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMaterialWithVariants } from "@/lib/queries/materials-mysql";
+import {
+  getMaterialImages,
+  getMaterialWithVariants,
+  setMaterialImages,
+  type MaterialImageInput,
+} from "@/lib/queries/materials-mysql";
 import { db } from "~/db";
 import { materialsTable, materialVariantsTable } from "~/db/schema";
 import { eq } from "drizzle-orm";
@@ -35,6 +40,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const images = await getMaterialImages(material.id);
+
     return NextResponse.json(
       {
         success: true,
@@ -45,6 +52,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
           price: parseFloat(material.price as any),
           stock: material.stock,
           image: material.image,
+          images: images.map((img: { id: number; url: string; ordem: number; isDefault: boolean }) => ({
+            id: img.id,
+            url: img.url,
+            ordem: img.ordem,
+            isDefault: img.isDefault,
+          })),
           categoryId: material.categoryId,
           isFeatured: material.isFeatured,
           attributes: typeof material.attributes === 'string' ? JSON.parse(material.attributes || '{}') : (material.attributes || {}),
@@ -99,7 +112,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json() as any;
-    const { name, description, price, stock, categoryId, image, isFeatured, attributes } = body;
+    const { name, description, price, stock, categoryId, image, isFeatured, attributes, images } = body;
 
     // Validar campos obrigatórios
     if (!name || !categoryId) {
@@ -107,6 +120,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         { success: false, message: "Nome e categoria são obrigatórios" },
         { status: 400 },
       );
+    }
+
+    // Se vier lista de imagens, substitui e usa a por-defeito como imagem principal.
+    let mainImage: string = image || "";
+    if (Array.isArray(images)) {
+      mainImage = await setMaterialImages(materialId, images as MaterialImageInput[]);
     }
 
     // Atualizar material
@@ -118,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         price: parseFloat(price) || 0,
         stock: parseInt(stock) || 0,
         categoryId: parseInt(categoryId),
-        image: image || "",
+        image: mainImage,
         isFeatured: Boolean(isFeatured),
         attributes: attributes || {},
       })

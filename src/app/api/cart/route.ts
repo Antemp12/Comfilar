@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCartForUser, addToCart, updateCartQuantity, removeFromCart, clearCart } from "~/lib/queries/shopping-cart-db";
-import { validateTokenFormat } from "~/lib/auth-middleware";
 import { getTokenFromHeader } from "~/lib/auth-comfilar";
 import { validateToken } from "~/lib/auth-comfilar";
 
 async function getUserIdFromRequest(req: NextRequest) {
   const token = getTokenFromHeader(req.headers.get("Authorization"));
-  if (!token || !validateTokenFormat(token)) {
+  if (!token) {
     return null;
   }
 

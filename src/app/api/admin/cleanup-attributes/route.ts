@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
 import { categoryAttributesTable } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
+import { validateAdminToken } from "~/lib/auth-api";
 
 /**
  * DELETE /api/admin/cleanup-attributes
  * Remove atributos duplicados mantendo apenas o primeiro de cada tipo
  */
 export async function DELETE(req: NextRequest) {
+  const user = await validateAdminToken(req);
+  if (!user || (user.type !== "admin" && user.type !== "funcionario")) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
   try {
     // Buscar todos os atributos
     const allAttributes = await db

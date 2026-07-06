@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { markAllNotificationsAsRead } from "@/lib/notifications-service";
+import { getTokenFromHeader, validateToken } from "@/lib/auth-comfilar";
 
 /**
  * PATCH /api/notifications/read-all
- * Marcar TODAS as notificacoes do utilizador como lidas
- * Query param: userId (numero)
+ * Marcar TODAS as notificacoes do utilizador autenticado como lidas.
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-
-    if (!userId) {
+    const authHeader =
+      request.headers.get("authorization") ?? request.headers.get("Authorization");
+    const token =
+      getTokenFromHeader(authHeader) ?? request.cookies.get("auth_token")?.value ?? null;
+    const decoded = token ? validateToken(token) : null;
+    if (!decoded) {
       return NextResponse.json(
-        { success: false, message: "userId é obrigatório" },
-        { status: 400 },
+        { success: false, message: "Não autenticado" },
+        { status: 401 },
       );
     }
 
-    await markAllNotificationsAsRead(parseInt(userId, 10));
+    await markAllNotificationsAsRead(decoded.userId);
 
     return NextResponse.json(
       { success: true, message: "Todas as notificações foram marcadas como lidas" },

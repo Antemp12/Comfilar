@@ -10,6 +10,8 @@ import {
 import { db } from '~/db';
 import { utilizadorTable, materialsTable, ordersTable, quoteRequestsTable } from '~/db/schema';
 import { eq } from 'drizzle-orm';
+import { NewNotificationsBanner } from './new-notifications-banner';
+import { QuickSignals } from './quick-signals';
 
 export default async function AdminDashboardPage() {
   // Buscar contagens
@@ -38,6 +40,9 @@ export default async function AdminDashboardPage() {
           Visão geral da plataforma Comfilar
         </p>
       </div>
+
+      {/* Aviso de notificações novas */}
+      <NewNotificationsBanner />
 
       {/* Métricas Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -112,6 +117,9 @@ export default async function AdminDashboardPage() {
           Ações Rápidas
         </h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {/* Ações com contadores ao vivo */}
+          <QuickSignals />
+
           <Link
             href="/admin/materials"
             className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
@@ -152,8 +160,13 @@ export default async function AdminDashboardPage() {
 
           <Link
             href="/admin/orders"
-            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+            className="group relative rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
           >
+            {totalActiveOrders > 0 && (
+              <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-bold text-white">
+                {totalActiveOrders}
+              </span>
+            )}
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <ShoppingCartIcon />
@@ -163,7 +176,9 @@ export default async function AdminDashboardPage() {
                   Ver Encomendas
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Gerir pedidos de clientes
+                  {totalActiveOrders > 0
+                    ? `${totalActiveOrders} ativa(s)`
+                    : "Gerir pedidos de clientes"}
                 </p>
               </div>
             </div>
@@ -171,8 +186,13 @@ export default async function AdminDashboardPage() {
 
           <Link
             href="/admin/quotes"
-            className="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+            className="group relative rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
           >
+            {totalPendingQuotes > 0 && (
+              <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-orange-500 px-1.5 text-xs font-bold text-white">
+                {totalPendingQuotes}
+              </span>
+            )}
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <FileTextIcon />
@@ -182,7 +202,9 @@ export default async function AdminDashboardPage() {
                   Gerir Orçamentos
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Responder a pedidos
+                  {totalPendingQuotes > 0
+                    ? `${totalPendingQuotes} pendente(s)`
+                    : "Responder a pedidos"}
                 </p>
               </div>
             </div>

@@ -86,6 +86,19 @@ export const materialVariantsTable = mysqlTable("material_variants", {
 
 
 // ============================================
+// MATERIAL IMAGES TABLE (imagens do produto, 1 a 3)
+// ============================================
+export const materialImagesTable = mysqlTable("material_images", {
+  id: int("id").primaryKey().autoincrement(),
+  materialId: int("material_id")
+    .notNull()
+    .references(() => materialsTable.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  ordem: int("ordem").notNull().default(0),
+  isDefault: boolean("is_default").notNull().default(false),
+});
+
+// ============================================
 // USERS TABLE (utilizador)
 // ============================================
 export const utilizadorTable = mysqlTable("utilizador", {

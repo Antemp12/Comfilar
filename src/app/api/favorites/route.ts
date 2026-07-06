@@ -4,12 +4,11 @@ import {
   getFavoritesForUser,
   removeFavorite,
 } from "~/lib/queries/favorites-db";
-import { validateTokenFormat } from "~/lib/auth-middleware";
 import { getTokenFromHeader, validateToken } from "~/lib/auth-comfilar";
 
 async function getUserIdFromRequest(req: NextRequest) {
   const token = getTokenFromHeader(req.headers.get("Authorization"));
-  if (!token || !validateTokenFormat(token)) {
+  if (!token) {
     return null;
   }
 

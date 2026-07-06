@@ -136,12 +136,10 @@ export function CartProvider({ children }: React.PropsWithChildren) {
       setIsLoading(true);
       if (isAuthenticated && token) {
         const cartData = await fetchCart(token);
-        console.log("📦 Cart data from API:", cartData);
         
         // Transform DB items to CartItem format
         const transformedItems = (cartData || [])
           .filter((item: any) => {
-            console.log("🔍 Checking item:", item);
             return item.material;
           })
           .map((item: any) => ({
@@ -153,7 +151,6 @@ export function CartProvider({ children }: React.PropsWithChildren) {
             quantity: item.quantity,
           }));
         
-        console.log("✅ Transformed items:", transformedItems);
         setItems(transformedItems);
       } else {
         setItems([]);

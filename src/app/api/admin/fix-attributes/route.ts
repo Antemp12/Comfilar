@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
 import { materialsTable } from "~/db/schema";
+import { validateAdminToken } from "~/lib/auth-api";
 
 /**
  * PUT /api/admin/fix-attributes
@@ -8,6 +9,10 @@ import { materialsTable } from "~/db/schema";
  * This ensures filter keys match the material attribute keys
  */
 export async function PUT(request: NextRequest) {
+  const user = await validateAdminToken(request);
+  if (!user || (user.type !== "admin" && user.type !== "funcionario")) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
   try {
     // Get all materials
     const materials = await db.select().from(materialsTable);
@@ -37,7 +42,6 @@ export async function PUT(request: NextRequest) {
           .where({ id: material.id } as any);
         
         fixedCount++;
-        console.log(`✅ Fixed attributes for material ${material.id}: ${material.name}`);
       }
     }
     

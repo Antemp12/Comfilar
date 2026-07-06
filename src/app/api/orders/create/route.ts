@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateTokenFormat } from "~/lib/auth-middleware";
 import { getTokenFromHeader, validateToken } from "~/lib/auth-comfilar";
 import { db } from "~/db";
 import { 
@@ -10,7 +9,7 @@ import {
   quoteItemsTable,
   meetingRequestsTable
 } from "~/db/schema";
-import { createNotification } from "~/lib/notifications-service";
+import { createNotification, notifyAdminNewOrder } from "~/lib/notifications-service";
 import { eq } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -26,12 +25,11 @@ async function getUserIdFromRequest(req: NextRequest) {
     token = req.cookies.get("auth_token")?.value ?? null;
   }
 
-  // Validar formato do token
-  if (!token || !validateTokenFormat(token)) {
+  if (!token) {
     return null;
   }
 
-  // Decodificar payload e extrair userId
+  // Verifica a assinatura do token e extrai o userId
   const payload = validateToken(token);
   if (!payload || typeof payload !== "object" || !("userId" in payload)) {
     return null;
@@ -185,23 +183,8 @@ export async function POST(req: NextRequest) {
 
       // Criar notificações (opcional - não bloquear se falhar)
       try {
-        console.log("Step 5: Creating notifications...");
-        const adminsAndStaff = await db
-          .select({ id: utilizadorTable.id })
-          .from(utilizadorTable)
-          .where(eq(utilizadorTable.type, "admin"));
-
-        console.log("Found admins:", adminsAndStaff.length);
-
-        for (const user of adminsAndStaff) {
-          await createNotification({
-            userId: user.id,
-            type: "pedido_criado",
-            title: "Nova Encomenda",
-            message: `Encomenda #${orderId} criada. Confirme se foi processada com sucesso.`,
-            relatedId: Number(orderId),
-          });
-        }
+        // Notifica todo o staff (admins + funcionários) do novo pedido.
+        await notifyAdminNewOrder(Number(orderId));
 
         // Criar notificação para o cliente
         await createNotification({
@@ -211,8 +194,6 @@ export async function POST(req: NextRequest) {
           message: `A sua encomenda #${orderId} foi recebida e está a ser processada.`,
           relatedId: Number(orderId),
         });
-        
-        console.log("Notifications created successfully");
       } catch (notifError) {
         console.warn("Failed to create notifications (non-critical):", notifError instanceof Error ? notifError.message : String(notifError));
       }

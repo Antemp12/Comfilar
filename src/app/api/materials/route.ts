@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMaterialsWithVariants } from "@/lib/queries/materials-mysql";
+import {
+  countMaterials,
+  getMaterialsWithVariants,
+  setMaterialImages,
+  type MaterialFilterOptions,
+  type MaterialImageInput,
+  type MaterialSortBy,
+  type SortOrder,
+} from "@/lib/queries/materials-mysql";
 import { db } from "~/db";
 import { materialsTable } from "~/db/schema";
 
+const SORT_FIELDS: readonly MaterialSortBy[] = ["name", "price", "stock", "updatedAt"];
+
 /**
  * GET /api/materials
- * Listar todos os materiais disponiveis com detalhes
- * Inclui categorias, tipos de preco e variacoes
- * Filtros: categoryId, search, minPrice, maxPrice, limit (50), offset (0)
+ * Listar materiais com detalhes (categorias, tipos de preço e variações).
+ * Query params:
+ *   Filtros:   categoryId, search, minPrice, maxPrice, featured=true, inStock=true
+ *   Ordenação: sortBy=name|price|stock|updatedAt, sortOrder=asc|desc
+ *   Paginação: page (1-based) OU offset, limit (1-100)
+ *   Extra:     variants=false (salta as variações — mais rápido para listagens)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,41 +36,59 @@ export async function GET(request: NextRequest) {
     const maxPrice = searchParams.get("maxPrice")
       ? parseFloat(searchParams.get("maxPrice")!)
       : undefined;
+    const featuredOnly = searchParams.get("featured") === "true";
+    const inStockOnly = searchParams.get("inStock") === "true";
+
     const limit = searchParams.get("limit")
       ? parseInt(searchParams.get("limit")!, 10)
       : 50;
-    const offset = searchParams.get("offset")
-      ? parseInt(searchParams.get("offset")!, 10)
-      : 0;
+    // Aceita `page` (1-based) ou `offset` direto.
+    const pageParam = searchParams.get("page")
+      ? parseInt(searchParams.get("page")!, 10)
+      : undefined;
+    const offset = pageParam && pageParam > 0
+      ? (pageParam - 1) * limit
+      : searchParams.get("offset")
+        ? parseInt(searchParams.get("offset")!, 10)
+        : 0;
+
+    const sortByParam = searchParams.get("sortBy") as MaterialSortBy | null;
+    const sortBy: MaterialSortBy =
+      sortByParam && SORT_FIELDS.includes(sortByParam) ? sortByParam : "name";
+    const sortOrder: SortOrder =
+      searchParams.get("sortOrder") === "desc" ? "desc" : "asc";
+
+    const includeVariants = searchParams.get("variants") !== "false";
 
     // Validar limites
-    if (limit < 1 || limit > 100) {
+    if (Number.isNaN(limit) || limit < 1 || limit > 100) {
       return NextResponse.json(
         { success: false, message: "Limite deve estar entre 1 e 100" },
         { status: 400 },
       );
     }
 
-    console.log("🔍 Materials API called with:", {
+    const filters: MaterialFilterOptions = {
       categoryId,
       search,
       minPrice,
       maxPrice,
-      limit,
-      offset,
-    });
+      featuredOnly,
+      inStockOnly,
+    };
 
-    // Buscar materiais
-    const materials = await getMaterialsWithVariants({
-      categoryId,
-      search,
-      minPrice,
-      maxPrice,
-      limit,
-      offset,
-    });
-
-    console.log(`✅ Found ${materials.length} materials`);
+    // Total (para paginação) + página atual em paralelo.
+    const [total, materials] = await Promise.all([
+      countMaterials(filters),
+      getMaterialsWithVariants({
+        ...filters,
+        limit,
+        offset,
+        sortBy,
+        sortOrder,
+        includeVariants,
+      }),
+    ]);
 
     return NextResponse.json(
       {
@@ -97,7 +128,9 @@ export async function GET(request: NextRequest) {
         pagination: {
           limit,
           offset,
-          total: materials.length,
+          total,
+          page: Math.floor(offset / limit) + 1,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
         },
       },
       { status: 200 },
@@ -119,7 +152,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as any;
-    const { name, description, price, stock, categoryId, image, isFeatured, attributes } = body;
+    const { name, description, price, stock, categoryId, image, isFeatured, attributes, images } = body;
 
     // Validar campos obrigatórios
     if (!name || !categoryId) {
@@ -129,6 +162,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Imagem principal = por-defeito da lista (se vier lista), senão o campo `image`.
+    const imgList = (Array.isArray(images) ? images : []) as MaterialImageInput[];
+    const hasImages = imgList.length > 0;
+    const mainImage = hasImages
+      ? (imgList.find((i) => i.isDefault)?.url?.trim()
+          || imgList[0]?.url?.trim()
+          || "")
+      : (image || "");
+
     // Inserir material
     const result = await db.insert(materialsTable).values({
       name,
@@ -136,10 +178,18 @@ export async function POST(request: NextRequest) {
       price: parseFloat(price) || 0,
       stock: parseInt(stock) || 0,
       categoryId: parseInt(categoryId),
-      image: image || "",
+      image: mainImage,
       isFeatured: Boolean(isFeatured),
       attributes: attributes || {},
     });
+
+    // Gravar imagens na tabela dedicada.
+    if (hasImages) {
+      await setMaterialImages(
+        Number((result as unknown as { insertId: number }).insertId),
+        imgList,
+      );
+    }
 
     return NextResponse.json(
       {

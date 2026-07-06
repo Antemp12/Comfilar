@@ -22,7 +22,6 @@ export async function GET(
 
     const attributes = await getCategoryAttributes(categoryId);
 
-    console.log(`📋 Attributes for category ${categoryId}:`, attributes);
 
     return NextResponse.json(
       {

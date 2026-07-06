@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { notificationsTable, utilizadorTable } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 
 type NotificationType =
   | "pedido_criado"
@@ -92,40 +92,26 @@ async function sendNotificationEmail(data: NotificationData) {
         const { Resend } = await import("resend");
         const resend = new Resend(process.env.RESEND_API_KEY);
 
-        const emailTemplates: { [key in NotificationType]: { subject: string } } =
-          {
-            pedido_criado: {
-              subject: "Pedido criado com sucesso",
-            },
-            pedido_confirmado: {
-              subject: "Pedido confirmado",
-            },
-            pedido_preparacao: {
-              subject: "Seu pedido está em preparação",
-            },
-            pedido_enviado: {
-              subject: "Seu pedido foi enviado",
-            },
-            pedido_entregue: {
-              subject: "Seu pedido foi entregue",
-            },
-            reuniao_agendada: {
-              subject: "Reunião agendada com sucesso",
-            },
-            reuniao_cancelada: {
-              subject: "Reunião cancelada",
-            },
-            sistema: {
-              subject: "Notificação do sistema",
-            },
-          };
+        const emailSubjects: Record<NotificationType, string> = {
+          pedido_criado: "Pedido criado com sucesso",
+          pedido_confirmado: "Pedido confirmado",
+          pedido_preparacao: "O seu pedido está em preparação",
+          pedido_enviado: "O seu pedido foi enviado",
+          pedido_entregue: "O seu pedido foi entregue",
+          reuniao_agendada: "Reunião agendada com sucesso",
+          reuniao_cancelada: "Reunião cancelada",
+          sistema: "Notificação do sistema",
+          mensagem: "Nova mensagem da Comfilar",
+          promocao: "Novidades e promoções Comfilar",
+        };
 
-        const template = emailTemplates[data.type];
+        // Usa o assunto do tipo, ou o título como fallback.
+        const subject = emailSubjects[data.type] ?? data.title;
 
         await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL || "Comfilar <onboarding@resend.dev>",
           to: user.email,
-          subject: template.subject,
+          subject,
           html: `
             <h2>${data.title}</h2>
             <p>${data.message}</p>
@@ -217,6 +203,21 @@ export async function getUnreadNotificationCount(userId: number) {
 }
 
 /**
+ * Contar não lidas no total E por tipo (para badges por secção).
+ */
+export async function getUnreadCounts(userId: number) {
+  const unread = await db.query.notificationsTable.findMany({
+    where: and(eq(notificationsTable.userId, userId), eq(notificationsTable.read, false)),
+  });
+
+  const byType: Record<string, number> = {};
+  for (const n of unread as { type: string }[]) {
+    byType[n.type] = (byType[n.type] ?? 0) + 1;
+  }
+  return { total: unread.length, byType };
+}
+
+/**
  * Deletar notificação
  */
 export async function deleteNotification(notificationId: number) {
@@ -226,6 +227,64 @@ export async function deleteNotification(notificationId: number) {
     ;
 
   return true;
+}
+
+// ============================================
+// NOTIFICAÇÕES PARA O STAFF (admin + funcionário)
+// ============================================
+
+/**
+ * Cria uma notificação para TODOS os admins e funcionários.
+ * Devolve o número de destinatários.
+ */
+export async function notifyStaff(data: Omit<NotificationData, "userId">) {
+  const staff = await db
+    .select({ id: utilizadorTable.id })
+    .from(utilizadorTable)
+    .where(inArray(utilizadorTable.type, ["admin", "funcionario"]));
+
+  await Promise.all(
+    staff.map((s: { id: number }) => createNotification({ ...data, userId: s.id })),
+  );
+  return staff.length;
+}
+
+/**
+ * Cria uma notificação para TODOS os clientes (ex.: anúncio/promoção).
+ * Devolve o número de destinatários.
+ */
+export async function notifyAllCustomers(data: Omit<NotificationData, "userId">) {
+  const customers = await db
+    .select({ id: utilizadorTable.id })
+    .from(utilizadorTable)
+    .where(eq(utilizadorTable.type, "cliente"));
+
+  await Promise.all(
+    customers.map((c: { id: number }) => createNotification({ ...data, userId: c.id })),
+  );
+  return customers.length;
+}
+
+export async function notifyAdminNewOrder(orderId: number, customerName?: string) {
+  return notifyStaff({
+    type: "pedido_criado",
+    title: "Novo pedido recebido",
+    message: customerName
+      ? `${customerName} fez um novo pedido (#${orderId}).`
+      : `Foi recebido um novo pedido (#${orderId}).`,
+    relatedId: orderId,
+  });
+}
+
+export async function notifyAdminNewMeeting(meetingId: number, customerName?: string) {
+  return notifyStaff({
+    type: "reuniao_agendada",
+    title: "Nova reunião agendada",
+    message: customerName
+      ? `${customerName} agendou uma reunião.`
+      : "Foi agendada uma nova reunião.",
+    relatedId: meetingId,
+  });
 }
 
 // ============================================

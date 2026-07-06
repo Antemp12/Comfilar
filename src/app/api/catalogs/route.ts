@@ -50,8 +50,6 @@ export async function POST(request: NextRequest) {
 
     const { title, imageUrl, description, order } = body;
 
-    console.log("🖼️ Criando novo catálogo");
-    console.log("🖼️ Dados:", { title, description, order });
 
     if (!title || !imageUrl) {
       return NextResponse.json(
@@ -78,7 +76,6 @@ export async function POST(request: NextRequest) {
       .from(catalogsTable)
       .where(eq(catalogsTable.id, id));
 
-    console.log("✅ Catálogo criado:", id);
 
     return NextResponse.json({
       success: true,

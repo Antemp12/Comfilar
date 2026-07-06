@@ -3,12 +3,48 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { z } from 'zod';
+import { toast } from 'sonner';
+import { Plus, Star, Trash2 } from 'lucide-react';
 import { Button } from '~/ui/primitives/button';
 
-interface Category {
+// Schema de validação do material (obrigatórios + invalidações)
+const materialSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'O nome deve ter pelo menos 2 caracteres')
+    .max(150, 'O nome é demasiado longo'),
+  description: z.string().max(2000, 'Descrição demasiado longa').optional(),
+  price: z
+    .number({ error: 'Preço inválido' })
+    .finite('Preço inválido')
+    .gt(0, 'O preço deve ser maior que 0'),
+  stock: z
+    .number({ error: 'Stock inválido' })
+    .int('O stock deve ser um número inteiro')
+    .min(0, 'O stock não pode ser negativo'),
+  categoryId: z
+    .number({ error: 'Categoria inválida' })
+    .int()
+    .gt(0, 'Seleciona uma categoria'),
+  images: z
+    .array(z.object({ url: z.string().trim().url('URL de imagem inválida'), isDefault: z.boolean() }))
+    .max(3, 'Máximo de 3 imagens')
+    .optional(),
+});
+
+type FieldErrors = Partial<Record<keyof z.infer<typeof materialSchema>, string>>;
+
+interface Subcategory {
   id: number;
   name: string;
-  parentCategoryId: number | null;
+}
+
+interface CategoryNode {
+  id: number;
+  name: string;
+  subcategories: Subcategory[];
 }
 
 interface CategoryAttribute {
@@ -35,10 +71,15 @@ export default function MaterialFormPage() {
   const materialId = params?.id as string;
   const isNewMaterial = materialId === 'new';
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [tree, setTree] = useState<CategoryNode[]>([]);
+  const [mainCategoryId, setMainCategoryId] = useState<number>(0);
   const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
   const [loading, setLoading] = useState(!isNewMaterial);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [images, setImages] = useState<{ url: string; isDefault: boolean }[]>([
+    { url: '', isDefault: true },
+  ]);
   const [material, setMaterial] = useState<Partial<Material>>({
     name: '',
     description: '',
@@ -51,7 +92,7 @@ export default function MaterialFormPage() {
   });
 
   useEffect(() => {
-    fetchMainCategories();
+    fetchTree();
     if (!isNewMaterial) {
       fetchMaterial();
     }
@@ -66,16 +107,49 @@ export default function MaterialFormPage() {
     }
   }, [material.categoryId]);
 
-  const fetchMainCategories = async () => {
+  // Resolve qual a categoria PRINCIPAL a partir da categoryId guardada
+  // (que pode ser uma subcategoria), assim que a árvore e o material carregam.
+  useEffect(() => {
+    if (!tree.length || !material.categoryId) return;
+    const asMain = tree.find((c) => c.id === material.categoryId);
+    if (asMain) {
+      setMainCategoryId(asMain.id);
+      return;
+    }
+    const parent = tree.find((c) =>
+      c.subcategories.some((s) => s.id === material.categoryId),
+    );
+    if (parent) setMainCategoryId(parent.id);
+  }, [tree, material.categoryId]);
+
+  const fetchTree = async () => {
     try {
-      const response = await fetch('/api/categories?mainOnly=true');
-      const data = await response.json() as any;
-      // Filtra apenas categorias principais (sem parentCategoryId)
-      const mainCategories = (data.data || []).filter((cat: Category) => !cat.parentCategoryId);
-      setCategories(mainCategories);
+      const response = await fetch('/api/categories?hierarchy=true');
+      const data = await response.json() as { data?: CategoryNode[] };
+      setTree(Array.isArray(data.data) ? data.data : []);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
+  };
+
+  // Subcategorias da categoria principal selecionada.
+  const subcategories =
+    tree.find((c) => c.id === mainCategoryId)?.subcategories ?? [];
+
+  // Ao mudar a categoria principal: por defeito guarda a principal como categoria
+  // do material (até escolher subcategoria) e limpa atributos.
+  const handleMainCategoryChange = (id: number) => {
+    setMainCategoryId(id);
+    setMaterial({ ...material, categoryId: id, attributes: {} });
+  };
+
+  // Ao mudar a subcategoria: se vazio, volta à principal.
+  const handleSubcategoryChange = (id: number) => {
+    setMaterial({
+      ...material,
+      categoryId: id || mainCategoryId,
+      attributes: {},
+    });
   };
 
   const fetchCategoryAttributes = async (categoryId: number) => {
@@ -93,12 +167,49 @@ export default function MaterialFormPage() {
     try {
       const response = await fetch(`/api/materials/${materialId}`);
       const data = await response.json() as any;
-      setMaterial(data.data || {});
+      const mat = data.data || {};
+      setMaterial(mat);
+
+      // Popula as imagens: da tabela dedicada, ou (fallback) da imagem única.
+      const imgs: { url: string; isDefault: boolean }[] = Array.isArray(mat.images) && mat.images.length
+        ? mat.images.map((i: { url: string; isDefault: boolean }) => ({
+            url: i.url,
+            isDefault: !!i.isDefault,
+          }))
+        : mat.image
+          ? [{ url: mat.image, isDefault: true }]
+          : [{ url: '', isDefault: true }];
+      if (!imgs.some((i) => i.isDefault)) imgs[0].isDefault = true;
+      setImages(imgs);
     } catch (error) {
       console.error('Error fetching material:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- Gestão das imagens (1 a 3, uma por-defeito) ---
+  const updateImageUrl = (idx: number, url: string) => {
+    setImages((prev) => prev.map((img, i) => (i === idx ? { ...img, url } : img)));
+    clearError('images');
+  };
+
+  const setDefaultImage = (idx: number) => {
+    setImages((prev) => prev.map((img, i) => ({ ...img, isDefault: i === idx })));
+  };
+
+  const addImage = () => {
+    setImages((prev) => (prev.length >= 3 ? prev : [...prev, { url: '', isDefault: false }]));
+  };
+
+  const removeImage = (idx: number) => {
+    setImages((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, i) => i !== idx);
+      // Se removemos a por-defeito, a primeira passa a ser a por-defeito.
+      if (!next.some((i) => i.isDefault)) next[0].isDefault = true;
+      return next;
+    });
   };
 
   const handleAttributeChange = (attributeName: string, value: string) => {
@@ -115,34 +226,59 @@ export default function MaterialFormPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Só imagens com URL preenchido contam.
+    const cleanedImages = images.filter((img) => img.url.trim());
+
+    // Validação com zod antes de enviar
+    const parsed = materialSchema.safeParse({ ...material, images: cleanedImages });
+    if (!parsed.success) {
+      const fieldErrors: FieldErrors = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as keyof FieldErrors;
+        if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
+      }
+      setErrors(fieldErrors);
+      toast.error('Corrige os campos assinalados');
+      return;
+    }
+    setErrors({});
     setSubmitting(true);
 
     try {
-      console.log("📝 Saving material with attributes:", material.attributes);
-      
       const url = isNewMaterial ? '/api/materials' : `/api/materials/${materialId}`;
       const method = isNewMaterial ? 'POST' : 'PUT';
 
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(material),
+        body: JSON.stringify({ ...material, images: cleanedImages }),
       });
 
       if (response.ok) {
-        console.log("✅ Material saved successfully!");
+        toast.success(isNewMaterial ? 'Material criado' : 'Material atualizado');
         router.push('/admin/materials');
       } else {
-        const error = (await response.json()) as any;
-        console.error("❌ Save error:", error);
-        alert('Erro ao guardar material: ' + (error?.message || 'Erro desconhecido'));
+        const error = (await response.json()) as { message?: string };
+        console.error('Save error:', error);
+        toast.error('Erro ao guardar: ' + (error?.message || 'Erro desconhecido'));
       }
     } catch (error) {
       console.error('Error saving material:', error);
-      alert('Erro ao guardar material');
+      toast.error('Erro ao guardar material');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Limpa o erro de um campo quando o utilizador o corrige.
+  const clearError = (field: keyof FieldErrors) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   if (loading) {
@@ -172,11 +308,20 @@ export default function MaterialFormPage() {
           </label>
           <input
             type="text"
-            required
             value={material.name || ''}
-            onChange={(e) => setMaterial({ ...material, name: e.target.value })}
-            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            onChange={(e) => {
+              setMaterial({ ...material, name: e.target.value });
+              clearError('name');
+            }}
+            className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-800 dark:text-white ${
+              errors.name
+                ? 'border-red-500 dark:border-red-500'
+                : 'border-gray-300 dark:border-gray-700'
+            }`}
           />
+          {errors.name && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.name}</p>
+          )}
         </div>
 
         {/* Descrição */}
@@ -201,11 +346,20 @@ export default function MaterialFormPage() {
             <input
               type="number"
               step="0.01"
-              required
-              value={material.price || 0}
-              onChange={(e) => setMaterial({ ...material, price: parseFloat(e.target.value) })}
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              value={Number.isFinite(material.price) ? material.price : ''}
+              onChange={(e) => {
+                setMaterial({ ...material, price: parseFloat(e.target.value) });
+                clearError('price');
+              }}
+              className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-800 dark:text-white ${
+                errors.price
+                  ? 'border-red-500 dark:border-red-500'
+                  : 'border-gray-300 dark:border-gray-700'
+              }`}
             />
+            {errors.price && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.price}</p>
+            )}
           </div>
 
           {/* Stock */}
@@ -215,39 +369,91 @@ export default function MaterialFormPage() {
             </label>
             <input
               type="number"
-              required
-              value={material.stock || 0}
-              onChange={(e) => setMaterial({ ...material, stock: parseInt(e.target.value) })}
-              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              value={Number.isFinite(material.stock) ? material.stock : ''}
+              onChange={(e) => {
+                setMaterial({ ...material, stock: parseInt(e.target.value) });
+                clearError('stock');
+              }}
+              className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-800 dark:text-white ${
+                errors.stock
+                  ? 'border-red-500 dark:border-red-500'
+                  : 'border-gray-300 dark:border-gray-700'
+              }`}
             />
+            {errors.stock && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.stock}</p>
+            )}
           </div>
         </div>
 
-        {/* Categoria */}
-        <div>
-          <label className="block text-sm font-medium text-gray-900 dark:text-white">
-            Categoria Principal
-          </label>
-          <select
-            required
-            value={material.categoryId || 0}
-            onChange={(e) => setMaterial({ ...material, categoryId: parseInt(e.target.value), attributes: {} })}
-            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          >
-            <option value={0}>Seleciona uma categoria</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
+        {/* Categoria + Subcategoria */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white">
+              Categoria Principal
+            </label>
+            <select
+              value={mainCategoryId || 0}
+              onChange={(e) => {
+                handleMainCategoryChange(parseInt(e.target.value));
+                clearError('categoryId');
+              }}
+              className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-800 dark:text-white ${
+                errors.categoryId
+                  ? 'border-red-500 dark:border-red-500'
+                  : 'border-gray-300 dark:border-gray-700'
+              }`}
+            >
+              <option value={0}>Seleciona uma categoria</option>
+              {tree.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            {errors.categoryId && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {errors.categoryId}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white">
+              Subcategoria
+              <span className="ml-1 text-xs font-normal text-gray-400">
+                (opcional)
+              </span>
+            </label>
+            <select
+              value={
+                material.categoryId && material.categoryId !== mainCategoryId
+                  ? material.categoryId
+                  : 0
+              }
+              onChange={(e) => handleSubcategoryChange(parseInt(e.target.value))}
+              disabled={!mainCategoryId || subcategories.length === 0}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            >
+              <option value={0}>
+                {subcategories.length === 0
+                  ? "Sem subcategorias"
+                  : "— Nenhuma —"}
               </option>
-            ))}
-          </select>
+              {subcategories.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Atributos da Categoria */}
         {categoryAttributes.length > 0 && (
           <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50">
             <h3 className="font-medium text-gray-900 dark:text-white">
-              Filtros da Categoria
+              Atributos da Categoria
             </h3>
             {categoryAttributes.map((attr) => {
               // Use lowercase key for consistency with filtering
@@ -275,17 +481,74 @@ export default function MaterialFormPage() {
           </div>
         )}
 
-        {/* Imagem */}
+        {/* Imagens (1 a 3, uma por-defeito) */}
         <div>
-          <label className="block text-sm font-medium text-gray-900 dark:text-white">
-            URL da Imagem
-          </label>
-          <input
-            type="url"
-            value={material.image || ''}
-            onChange={(e) => setMaterial({ ...material, image: e.target.value })}
-            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          />
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-gray-900 dark:text-white">
+              Imagens do Produto
+              <span className="ml-1 text-xs font-normal text-gray-400">
+                (1 a 3 — marca a imagem por defeito)
+              </span>
+            </label>
+            {images.length < 3 && (
+              <Button type="button" variant="outline" size="sm" onClick={addImage} className="gap-1">
+                <Plus className="h-4 w-4" />
+                Adicionar
+              </Button>
+            )}
+          </div>
+
+          <div className="mt-2 space-y-3">
+            {images.map((img, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                {/* Marcar por-defeito */}
+                <button
+                  type="button"
+                  onClick={() => setDefaultImage(idx)}
+                  title={img.isDefault ? 'Imagem por defeito' : 'Definir como por defeito'}
+                  className={`mt-1 rounded-md border p-2 ${
+                    img.isDefault
+                      ? 'border-yellow-400 bg-yellow-50 text-yellow-500 dark:bg-yellow-900/20'
+                      : 'border-gray-300 text-gray-400 hover:text-yellow-500 dark:border-gray-700'
+                  }`}
+                >
+                  <Star className="h-4 w-4" fill={img.isDefault ? 'currentColor' : 'none'} />
+                </button>
+
+                <div className="flex-1">
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={img.url}
+                    onChange={(e) => updateImageUrl(idx, e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  />
+                  {img.url.trim() && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img.url}
+                      alt={`Imagem ${idx + 1}`}
+                      className="mt-2 h-24 w-24 rounded object-cover"
+                    />
+                  )}
+                </div>
+
+                {images.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeImage(idx)}
+                    title="Remover imagem"
+                    className="mt-1 rounded-md border border-gray-300 p-2 text-red-500 hover:bg-red-50 dark:border-gray-700 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {errors.images && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.images}</p>
+          )}
         </div>
 
         {/* Destaque */}

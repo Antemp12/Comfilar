@@ -96,19 +96,33 @@ export default function ProductsPage() {
     async function fetchData() {
       try {
         setLoading(true);
-        
-        // Fetch materials
-        const materialsRes = await fetch("/api/materials");
-        if (!materialsRes.ok) {
-          const errorText = await materialsRes.text();
-          console.error("Materials API error:", materialsRes.status, errorText);
-          throw new Error(`Failed to fetch materials: ${materialsRes.status}`);
+
+        // Busca o catálogo COMPLETO paginando a API (o limite por página é 100).
+        // Assim os filtros client-side operam sobre todos os produtos, e não só
+        // sobre os primeiros 50.
+        const pageSize = 100;
+        let page = 1;
+        let allMaterials: Material[] = [];
+        while (true) {
+          const materialsRes = await fetch(
+            `/api/materials?limit=${pageSize}&page=${page}&variants=false`,
+          );
+          if (!materialsRes.ok) {
+            const errorText = await materialsRes.text();
+            console.error("Materials API error:", materialsRes.status, errorText);
+            throw new Error(`Failed to fetch materials: ${materialsRes.status}`);
+          }
+          const materialsData = (await materialsRes.json()) as {
+            data?: Material[];
+            pagination?: { total?: number };
+          };
+          const pageItems = Array.isArray(materialsData?.data) ? materialsData.data : [];
+          allMaterials = allMaterials.concat(pageItems);
+          const total = materialsData.pagination?.total ?? allMaterials.length;
+          if (pageItems.length === 0 || allMaterials.length >= total) break;
+          page++;
         }
-        const materialsData = (await materialsRes.json()) as any;
-        console.log("Materials data:", materialsData);
-        const materialsList = Array.isArray(materialsData?.data) ? materialsData.data : 
-                              Array.isArray(materialsData) ? materialsData : [];
-        setMaterials(materialsList);
+        setMaterials(allMaterials);
 
         // Fetch main categories with subcategories
         const categoriesRes = await fetch("/api/categories?hierarchy=true");
@@ -118,8 +132,7 @@ export default function ProductsPage() {
           throw new Error(`Failed to fetch categories: ${categoriesRes.status}`);
         }
         const categoriesData = (await categoriesRes.json()) as any;
-        console.log("Categories data:", categoriesData);
-        const categoriesList = Array.isArray(categoriesData?.data) ? categoriesData.data : 
+        const categoriesList = Array.isArray(categoriesData?.data) ? categoriesData.data :
                                Array.isArray(categoriesData) ? categoriesData : [];
         setMainCategories(categoriesList);
       } catch (error) {
@@ -205,9 +218,6 @@ export default function ProductsPage() {
               }))
           }));
           
-          console.log("📋 Grouped attributes:", formattedAttrs);
-          console.log("📊 Raw attributes count:", attributesList.length);
-          console.log("📊 Unique attributes after grouping:", formattedAttrs.length);
           setCategoryAttributes(formattedAttrs);
           setAttributeFilters({});
         }
@@ -297,6 +307,11 @@ export default function ProductsPage() {
 
     // Sort
     result.sort((a, b) => {
+      // Produtos sem stock vão SEMPRE para o fim, independentemente da ordenação.
+      const aOut = (a.stock ?? 0) <= 0;
+      const bOut = (b.stock ?? 0) <= 0;
+      if (aOut !== bOut) return aOut ? 1 : -1;
+
       switch (sortBy) {
         case "price-asc":
           return parseFloat(a.price) - parseFloat(b.price);

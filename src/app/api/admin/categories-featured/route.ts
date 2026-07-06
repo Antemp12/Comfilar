@@ -75,7 +75,6 @@ export async function PUT(request: NextRequest) {
         .where(eq(categoriesTable.id, categoryId));
     }
 
-    console.log(`✅ Categorias featured atualizadas por ${user.type}:`, categoryIds);
 
     return NextResponse.json({
       success: true,
@@ -108,25 +107,16 @@ export async function GET(request: NextRequest) {
 
     const allCategories = await db.select().from(categoriesTable);
 
-    console.log(`📋 Total categories found: ${allCategories.length}`);
-    if (allCategories.length > 0) {
-      console.log(`📋 Sample category:`, allCategories[0]);
-    }
-
     // Retornar apenas categorias principais (sem parentCategoryId ou null)
     const mainCategories = allCategories.filter(
       (cat) => cat.parentCategoryId === null || !cat.parentCategoryId
     );
 
-    console.log(`📋 Main categories found: ${mainCategories.length}`);
-    
     const responseData = mainCategories.map((cat) => ({
       id: cat.id,
       name: cat.name,
       isFeatured: cat.isFeatured || false,
     }));
-    
-    console.log(`📋 Response data:`, responseData);
 
     return NextResponse.json({
       success: true,

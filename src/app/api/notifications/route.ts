@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createNotification,
   getUserNotifications,
-  getUnreadNotificationCount,
+  getUnreadCounts,
 } from "@/lib/notifications-service";
 import { getTokenFromHeader, validateToken, getUserById } from "@/lib/auth-comfilar";
 
@@ -16,7 +16,21 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const userId = searchParams.get("userId");
+    // O utilizador é derivado do TOKEN (nunca do URL) — evita ler
+    // notificações de outros utilizadores.
+    const authHeader =
+      request.headers.get("authorization") ?? request.headers.get("Authorization");
+    const token =
+      getTokenFromHeader(authHeader) ?? request.cookies.get("auth_token")?.value ?? null;
+    const decoded = token ? validateToken(token) : null;
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, message: "Não autenticado" },
+        { status: 401 },
+      );
+    }
+    const userId_num = decoded.userId;
+
     const unreadOnly = searchParams.get("unreadOnly") === "true";
     const limit = searchParams.get("limit")
       ? parseInt(searchParams.get("limit")!, 10)
@@ -24,13 +38,6 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get("offset")
       ? parseInt(searchParams.get("offset")!, 10)
       : 0;
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, message: "userId é obrigatório" },
-        { status: 400 },
-      );
-    }
 
     // Validar limites
     if (limit < 1 || limit > 100) {
@@ -40,8 +47,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userId_num = parseInt(userId, 10);
-
     // Buscar notificações
     const notifications = await getUserNotifications(userId_num, {
       unreadOnly,
@@ -49,8 +54,8 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    // Contar não lidas
-    const unreadCount = await getUnreadNotificationCount(userId_num);
+    // Contar não lidas (total + por tipo, para badges por secção)
+    const counts = await getUnreadCounts(userId_num);
 
     return NextResponse.json(
       {
@@ -66,7 +71,8 @@ export async function GET(request: NextRequest) {
           sentEmail: notif.sentEmail,
           createdAt: notif.createdAt,
         })),
-        unreadCount,
+        unreadCount: counts.total,
+        unreadByType: counts.byType,
         pagination: {
           limit,
           offset,

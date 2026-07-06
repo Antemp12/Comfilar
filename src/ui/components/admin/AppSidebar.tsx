@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   ChevronDownIcon,
 } from "~/ui/icons/admin-icons";
+import { Tags, Bell, MessageSquare } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -35,6 +36,11 @@ const navItems: NavItem[] = [
     icon: <PackageIcon />,
     name: "Materiais",
     path: "/admin/materials",
+  },
+  {
+    icon: <Tags className="w-5 h-5" />,
+    name: "Categorias",
+    path: "/admin/categorias",
   },
   {
     icon: <UsersIcon />,
@@ -56,16 +62,24 @@ const navItems: NavItem[] = [
     name: "Reuniões",
     path: "/admin/meetings",
   },
+  {
+    icon: <Bell className="w-5 h-5" />,
+    name: "Notificações",
+    path: "/admin/notifications",
+  },
+  {
+    icon: <MessageSquare className="w-5 h-5" />,
+    name: "Mensagens",
+    path: "/admin/messages",
+  },
 ];
 
 const othersItems: NavItem[] = [
   {
     icon: <StarIcon />,
-    name: "Destaques",
+    name: "Página Inicial",
     subItems: [
-      { name: "Imagens de Categorias", path: "/admin/categorias" },
       { name: "Categorias Destaque", path: "/admin/categorias-destaque" },
-      { name: "Produtos Destaque", path: "/admin/produtos-destaque" },
       { name: "Catálogos (Carrossel)", path: "/admin/catalogs" },
     ],
   },
@@ -83,9 +97,46 @@ const othersItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Contadores de não lidas (sinaliza "coisas novas"); atualiza a cada 30s.
+  const [unread, setUnread] = useState(0);
+  const [msgUnread, setMsgUnread] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/notifications?limit=1", { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          unreadCount?: number;
+          unreadByType?: Record<string, number>;
+        };
+        if (active) {
+          setUnread(data.unreadCount ?? 0);
+          setMsgUnread(data.unreadByType?.mensagem ?? 0);
+        }
+      } catch {
+        /* ignora */
+      }
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, [user]);
+
+  // Badge a mostrar por item de menu (nome → contagem).
+  const badgeFor = (name: string): number => {
+    if (name === "Notificações") return unread;
+    if (name === "Mensagens") return msgUnread;
+    return 0;
+  };
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -191,16 +242,28 @@ const AppSidebar: React.FC = () => {
                 } ${!isExpanded && !isHovered ? "lg:justify-center" : ""}`}
               >
                 <span
-                  className={`${
+                  className={`relative ${
                     isActive(nav.path)
                       ? "text-primary"
                       : "text-gray-500 dark:text-gray-400"
                   }`}
                 >
                   {nav.icon}
+                  {/* Ponto vermelho quando o menu está recolhido */}
+                  {badgeFor(nav.name) > 0 &&
+                    !(isExpanded || isHovered || isMobileOpen) && (
+                      <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                    )}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span>{nav.name}</span>
+                  <span className="flex flex-1 items-center justify-between">
+                    {nav.name}
+                    {badgeFor(nav.name) > 0 && (
+                      <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                        {badgeFor(nav.name) > 99 ? "99+" : badgeFor(nav.name)}
+                      </span>
+                    )}
+                  </span>
                 )}
               </Link>
             )

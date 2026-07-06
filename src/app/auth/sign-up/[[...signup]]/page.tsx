@@ -1,14 +1,6 @@
-import { SYSTEM_CONFIG } from "~/app";
-import { getCurrentUserOrRedirect } from "~/lib/auth";
+import { redirect } from "next/navigation";
 
-import { SignUpPageClient } from "./page.client";
-
-export default async function SignUpPage() {
-  await getCurrentUserOrRedirect(
-    undefined,
-    SYSTEM_CONFIG.redirectAfterSignIn,
-    true,
-  );
-
-  return <SignUpPageClient />;
+// Fluxo de registo consolidado em /auth/register.
+export default function SignUpPage() {
+  redirect("/auth/register");
 }

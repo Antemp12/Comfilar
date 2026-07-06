@@ -42,6 +42,10 @@ export async function getGithubStars() {
       {
         revalidate: 3600,
         tags: ["github-stars"],
-    },
-  )();
+      },
+    )();
+  } catch (error) {
+    console.warn("failed to fetch github stars:", error);
+    return null;
+  }
 }

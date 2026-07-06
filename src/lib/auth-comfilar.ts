@@ -6,6 +6,7 @@ import {
   type NewUtilizador,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { signSessionToken, verifySessionToken } from "@/lib/session-token";
 
 // ============================================
 // PASSWORD HASHING
@@ -113,8 +114,8 @@ export async function loginUser(
       return null;
     }
 
-    // Gera um token simples (em produção usar JWT)
-    const token = Buffer.from(`${user.id}:${Date.now()}`).toString("base64");
+    // Token de sessão assinado com HMAC (ver session-token.ts)
+    const token = signSessionToken(user.id);
 
     return { user, token };
   } catch (error) {
@@ -174,24 +175,10 @@ export async function updateUserType(
 // ============================================
 
 /**
- * Valida um token
- * Formato: base64(userId:timestamp)
+ * Valida um token de sessão (assinatura HMAC + expiração).
  */
 export function validateToken(token: string): { userId: number } | null {
-  try {
-    const decoded = Buffer.from(token, "base64").toString("utf-8");
-    const [userIdStr] = decoded.split(":");
-    const userId = parseInt(userIdStr, 10);
-
-    if (isNaN(userId)) {
-      return null;
-    }
-
-    return { userId };
-  } catch (error) {
-    console.error("Erro ao validar token:", error);
-    return null;
-  }
+  return verifySessionToken(token);
 }
 
 /**

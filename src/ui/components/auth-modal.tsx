@@ -32,10 +32,10 @@ export function AuthModal({
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-4">
           <Button asChild size="lg" onClick={onClose}>
-            <Link href="/auth/sign-in">Iniciar Sessão</Link>
+            <Link href="/auth/login">Iniciar Sessão</Link>
           </Button>
           <Button asChild variant="outline" size="lg" onClick={onClose}>
-            <Link href="/auth/sign-up">Criar Conta</Link>
+            <Link href="/auth/register">Criar Conta</Link>
           </Button>
         </div>
       </DialogContent>

@@ -117,7 +117,7 @@ export default function DashboardProductsPage() {
       try {
         const res = await fetch(`/api/categories/${selectedCategory}/attributes`);
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as any;
           // Converter formato da API para compatível com renderização
           const formattedAttrs = data.data?.map((attr: any) => ({
             id: attr.id,
@@ -129,7 +129,6 @@ export default function DashboardProductsPage() {
             })) : []
           })) || [];
           
-          console.log("📋 Formatted attributes:", formattedAttrs);
           setCategoryAttributes(formattedAttrs);
           setAttributeFilters({});
         }

@@ -30,8 +30,6 @@ export async function PUT(
       order?: number;
     };
 
-    console.log("🖼️ Atualizando catálogo:", id);
-    console.log("🖼️ Dados:", body);
 
     await db
       .update(catalogsTable)
@@ -51,14 +49,12 @@ export async function PUT(
       .where(eq(catalogsTable.id, id));
 
     if (!updated) {
-      console.log("🖼️ Catálogo não encontrado:", id);
       return NextResponse.json(
         { success: false, message: "Catálogo não encontrado" },
         { status: 404 }
       );
     }
 
-    console.log("✅ Catálogo atualizado:", id);
 
     return NextResponse.json({
       success: true,
@@ -110,7 +106,6 @@ export async function DELETE(
       .delete(catalogsTable)
       .where(eq(catalogsTable.id, id));
 
-    console.log("✅ Catálogo deletado:", id);
 
     return NextResponse.json({
       success: true,

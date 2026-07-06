@@ -3,6 +3,7 @@ import { db } from "~/db";
 import { meetingRequestsTable } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getTokenFromHeader, validateToken } from "~/lib/auth-comfilar";
+import { notifyAdminNewMeeting } from "~/lib/notifications-service";
 
 /**
  * GET /api/meetings/requests
@@ -55,13 +56,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Fim deve ser após início" }, { status: 400 });
     }
 
-    console.log("📅 Creating meeting with date:", date, "start:", start, "end:", end);
-    
     // Se a data já vem em formato ISO, usar diretamente
     const jsDate = new Date(date);
-    
-    console.log("📅 Parsed date object:", jsDate);
-    console.log("📅 About to insert into DB with values:", {
+
+    const inserted = await db.insert(meetingRequestsTable).values({
       userId: payload.userId,
       date: jsDate,
       startTime: start,
@@ -70,14 +68,11 @@ export async function POST(req: NextRequest) {
       status: "pendente",
     });
 
-    await db.insert(meetingRequestsTable).values({
-      userId: payload.userId,
-      date: jsDate,
-      startTime: start,
-      endTime: end,
-      subject: subject || null,
-      status: "pendente",
-    });
+    // Notifica o staff (admins + funcionários) da nova reunião.
+    const meetingId = Number((inserted as unknown as { insertId?: number })?.insertId ?? 0);
+    notifyAdminNewMeeting(meetingId).catch((e) =>
+      console.error("Erro ao notificar staff da reunião:", e),
+    );
 
     return NextResponse.json({ success: true, message: "Pedido criado" }, { status: 201 });
   } catch (err) {

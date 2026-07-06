@@ -57,18 +57,16 @@ export default function HomePage() {
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
-        // Fetch produtos em destaque
-        const response = await fetch('/api/materials?limit=50');
+        // Fetch produtos em destaque (filtrado e limitado no servidor)
+        const response = await fetch('/api/materials?featured=true&limit=8&variants=false');
         if (!response.ok) {
           console.error('Failed to fetch materials:', response.status);
           setLoading(false);
           return;
         }
         const data = await response.json() as any;
-        
+
         const featured = (data.data || [])
-          .filter((m: any) => m.isFeatured === true)
-          .slice(0, 8)
           .map((m: any) => ({
             id: m.id.toString(),
             name: m.name,

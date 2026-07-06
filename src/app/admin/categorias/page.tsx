@@ -1,20 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ImageIcon,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
 import { Button } from "@/ui/primitives/button";
 import { Input } from "@/ui/primitives/input";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/ui/primitives/dialog";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
-interface Category {
+interface Subcategory {
   id: number;
   name: string;
   image: string | null;
@@ -22,171 +32,420 @@ interface Category {
   parentCategoryId: number | null;
 }
 
+interface Category extends Subcategory {
+  subcategories: Subcategory[];
+}
+
+type DialogState =
+  | { mode: "create"; parentId: number | null; parentName?: string }
+  | { mode: "edit"; category: Subcategory }
+  | null;
+
+const categoryFormSchema = z.object({
+  name: z.string().trim().min(2, "O nome deve ter pelo menos 2 caracteres"),
+  image: z.string().trim().url("URL de imagem inválida").optional().or(z.literal("")),
+});
+
 export default function CategoriesPage() {
   const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [imageUrl, setImageUrl] = useState("");
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [formName, setFormName] = useState("");
+  const [formImage, setFormImage] = useState("");
+  const [formErrors, setFormErrors] = useState<{ name?: string; image?: string }>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const [toDelete, setToDelete] = useState<Subcategory | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchCategories = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/categories?hierarchy=true", {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Erro ao buscar categorias");
+      const data = await res.json() as { data?: Category[] };
+      setCategories(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      console.error("Erro:", error);
+      toast.error("Erro ao carregar categorias");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
     fetchCategories();
   }, [user]);
 
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch("/api/categories?hierarchy=false", {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Erro ao buscar categorias");
-      const data = await response.json();
-      
-      // Handle multiple response formats
-      const categoriesList = Array.isArray(data?.data) ? data.data : 
-                             Array.isArray(data) ? data : [];
-      setCategories(categoriesList.filter((cat: Category) => !cat.parentCategoryId));
-    } catch (error) {
-      console.error("Erro:", error);
-    } finally {
-      setLoading(false);
-    }
+  const toggleExpand = (id: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
-  const handleImageUpdate = async () => {
-    if (!editingId || !imageUrl.trim()) return;
+  const openCreate = (parentId: number | null, parentName?: string) => {
+    setFormName("");
+    setFormImage("");
+    setFormErrors({});
+    setDialog({ mode: "create", parentId, parentName });
+  };
+
+  const openEdit = (category: Subcategory) => {
+    setFormName(category.name);
+    setFormImage(category.image ?? "");
+    setFormErrors({});
+    setDialog({ mode: "edit", category });
+  };
+
+  const closeDialog = () => setDialog(null);
+
+  const handleSubmit = async () => {
+    if (!dialog) return;
+
+    // Validação com zod
+    const parsed = categoryFormSchema.safeParse({ name: formName, image: formImage });
+    if (!parsed.success) {
+      const errs: { name?: string; image?: string } = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as "name" | "image";
+        if (key && !errs[key]) errs[key] = issue.message;
+      }
+      setFormErrors(errs);
+      return;
+    }
+    setFormErrors({});
+    const name = formName.trim();
 
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/admin/categories/${editingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ image: imageUrl }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Erro detalhado:", errorData);
-        throw new Error(errorData?.error || "Erro ao atualizar imagem");
+      let res: Response;
+      if (dialog.mode === "create") {
+        res = await fetch("/api/admin/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name,
+            image: formImage.trim() || null,
+            parentCategoryId: dialog.parentId,
+          }),
+        });
+      } else {
+        res = await fetch(`/api/admin/categories/${dialog.category.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name, image: formImage.trim() || null }),
+        });
       }
 
-      const updatedCategory = await response.json();
-      setCategories((prev) =>
-        prev.map((cat) =>
-          cat.id === editingId ? { ...cat, image: imageUrl } : cat
-        )
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) throw new Error(data?.error || "Erro ao guardar");
+
+      toast.success(
+        dialog.mode === "create" ? "Categoria criada" : "Categoria atualizada",
       );
-      setEditingId(null);
-      setImageUrl("");
-      alert("Imagem atualizada com sucesso!");
+      if (dialog.mode === "create" && dialog.parentId) {
+        setExpanded((prev) => new Set(prev).add(dialog.parentId!));
+      }
+      closeDialog();
+      fetchCategories();
     } catch (error) {
-      console.error("Erro:", error);
-      const errorMessage = error instanceof Error ? error.message : "Erro ao atualizar imagem";
-      alert(errorMessage);
+      toast.error(error instanceof Error ? error.message : "Erro ao guardar");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/categories/${toDelete.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({})) as { error?: string };
+      if (!res.ok) throw new Error(data?.error || "Erro ao eliminar");
+      toast.success("Categoria eliminada");
+      setToDelete(null);
+      fetchCategories();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao eliminar");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="animate-spin" />
+      <div className="flex min-h-[300px] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
 
+  const Thumb = ({ image, name }: { image: string | null; name: string }) =>
+    image ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={image}
+        alt={name}
+        className="h-10 w-10 flex-shrink-0 rounded object-cover"
+      />
+    ) : (
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-gray-100 dark:bg-gray-800">
+        <ImageIcon className="h-4 w-4 text-gray-400" />
+      </div>
+    );
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Imagens de Categorias</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Gestão de Categorias
+          </h1>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Cria, edita e organiza categorias e subcategorias
+          </p>
+        </div>
+        <Button className="gap-2" onClick={() => openCreate(null)}>
+          <Plus className="h-4 w-4" />
+          Nova Categoria
+        </Button>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories.map((cat) => (
-          <div key={cat.id} className="border rounded-lg overflow-hidden">
-            {cat.image ? (
-              <img
-                src={cat.image}
-                alt={cat.name}
-                className="w-full h-48 object-cover"
-              />
-            ) : (
-              <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                <span className="text-gray-500">Sem imagem</span>
-              </div>
-            )}
-
-            <div className="p-4">
-              <h2 className="font-semibold mb-2">{cat.name}</h2>
-              {cat.isFeatured && (
-                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded mb-2 inline-block">
-                  Em Destaque
-                </span>
-              )}
-
-              <Dialog open={editingId === cat.id} onOpenChange={(open) => {
-                if (!open) {
-                  setEditingId(null);
-                  setImageUrl("");
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setEditingId(cat.id);
-                      setImageUrl(cat.image || "");
-                    }}
+      {categories.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center text-gray-500 dark:border-gray-700">
+          Ainda não há categorias. Cria a primeira!
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {categories.map((cat) => {
+            const isOpen = expanded.has(cat.id);
+            return (
+              <div
+                key={cat.id}
+                className="rounded-lg border border-gray-200 dark:border-gray-800"
+              >
+                {/* Categoria principal */}
+                <div className="flex items-center gap-3 p-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(cat.id)}
+                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    aria-label={isOpen ? "Recolher" : "Expandir"}
                   >
-                    Editar Imagem
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Editar Imagem - {cat.name}</DialogTitle>
-                    <DialogDescription>
-                      Cole a URL de uma imagem (ex: Unsplash)
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <Input
-                      placeholder="https://images.unsplash.com/..."
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                    />
-
-                    {imageUrl && (
-                      <img
-                        src={imageUrl}
-                        alt="Preview"
-                        className="w-full h-48 object-cover rounded"
-                        onError={() =>
-                          alert("URL de imagem inválida")
-                        }
-                      />
+                    {isOpen ? (
+                      <ChevronDown className="h-5 w-5" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5" />
                     )}
-
+                  </button>
+                  <Thumb image={cat.image} name={cat.name} />
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {cat.name}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      {cat.subcategories.length} subcategoria(s)
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
                     <Button
-                      onClick={handleImageUpdate}
-                      disabled={submitting || !imageUrl.trim()}
-                      className="w-full"
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => openCreate(cat.id, cat.name)}
                     >
-                      {submitting ? (
-                        <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                      ) : null}
-                      Salvar Imagem
+                      <Plus className="h-4 w-4" />
+                      Subcategoria
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEdit(cat)}
+                      aria-label="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 dark:text-red-400"
+                      onClick={() => setToDelete(cat)}
+                      aria-label="Eliminar"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                </DialogContent>
-              </Dialog>
+                </div>
+
+                {/* Subcategorias */}
+                {isOpen && (
+                  <div className="border-t border-gray-100 dark:border-gray-800/60">
+                    {cat.subcategories.length === 0 ? (
+                      <p className="px-14 py-3 text-sm text-gray-400">
+                        Sem subcategorias.
+                      </p>
+                    ) : (
+                      cat.subcategories.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="flex items-center gap-3 px-14 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                        >
+                          <Thumb image={sub.image} name={sub.name} />
+                          <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">
+                            {sub.name}
+                          </span>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEdit(sub)}
+                              aria-label="Editar"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 dark:text-red-400"
+                              onClick={() => setToDelete(sub)}
+                              aria-label="Eliminar"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialog criar/editar */}
+      <Dialog open={!!dialog} onOpenChange={(open) => !open && closeDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dialog?.mode === "create"
+                ? dialog.parentId
+                  ? `Nova subcategoria em "${dialog.parentName}"`
+                  : "Nova categoria"
+                : "Editar categoria"}
+            </DialogTitle>
+            <DialogDescription>
+              Define o nome e, opcionalmente, uma imagem (URL).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Nome</label>
+              <Input
+                value={formName}
+                onChange={(e) => {
+                  setFormName(e.target.value);
+                  if (formErrors.name) setFormErrors((p) => ({ ...p, name: undefined }));
+                }}
+                placeholder="Ex: Cimento e Aglomerantes"
+                autoFocus
+                aria-invalid={!!formErrors.name}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !submitting) handleSubmit();
+                }}
+              />
+              {formErrors.name && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Imagem (URL) — opcional
+              </label>
+              <Input
+                value={formImage}
+                onChange={(e) => {
+                  setFormImage(e.target.value);
+                  if (formErrors.image) setFormErrors((p) => ({ ...p, image: undefined }));
+                }}
+                placeholder="https://..."
+                aria-invalid={!!formErrors.image}
+              />
+              {formErrors.image && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.image}</p>
+              )}
+              {formImage.trim() && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={formImage}
+                  alt="Pré-visualização"
+                  className="mt-2 h-32 w-full rounded object-cover"
+                />
+              )}
             </div>
           </div>
-        ))}
-      </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialog} disabled={submitting}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog eliminar */}
+      <Dialog open={!!toDelete} onOpenChange={(open) => !open && setToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar categoria</DialogTitle>
+            <DialogDescription>
+              {toDelete && (
+                <>
+                  Tens a certeza que queres eliminar{" "}
+                  <strong>{toDelete.name}</strong>? Se tiver subcategorias ou
+                  materiais associados, a eliminação será bloqueada.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setToDelete(null)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

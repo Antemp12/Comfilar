@@ -13,8 +13,7 @@
     "db:auth": "bun src/lib/auth-db.ts",
     "ui": "bunx --bun shadcn@latest add",
     "latest": "bun update --latest && bun check",
-    "check": "tsc --noEmit && eslint --cache --fix . && biome check --fix --unsafe . && knip",
-    "tests": "bun test ./.tests"
+    "check": "tsc --noEmit && eslint --cache --fix . && biome check --fix --unsafe . && knip"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",

@@ -1,13 +1,127 @@
 import { db } from "@/db";
 import {
   categoriesTable,
+  materialImagesTable,
   type MaterialVariant,
   type MaterialWithCategory,
   materialsTable,
   materialVariantsTable,
   priceTypesTable,
 } from "@/db/schema";
-import { eq, asc, desc, ilike, and } from "drizzle-orm";
+import { eq, asc, desc, like, and, gte, lte, count, type SQL } from "drizzle-orm";
+import { normalizeMaterialImages, type MaterialImageInput } from "~/lib/material-images";
+
+// ============================================
+// FILTROS PARTILHADOS
+// ============================================
+
+export type MaterialSortBy = "name" | "price" | "stock" | "updatedAt";
+export type SortOrder = "asc" | "desc";
+
+export interface MaterialFilterOptions {
+  categoryId?: number;
+  search?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  featuredOnly?: boolean;
+  inStockOnly?: boolean;
+}
+
+/**
+ * Constrói as condições WHERE partilhadas pela listagem e pela contagem,
+ * garantindo que ambas usam exatamente os mesmos filtros.
+ */
+function buildMaterialConditions(options: MaterialFilterOptions = {}): SQL[] {
+  const { categoryId, search, minPrice, maxPrice, featuredOnly, inStockOnly } =
+    options;
+
+  const conditions: SQL[] = [eq(materialsTable.isDeleted, false)];
+
+  if (categoryId) {
+    conditions.push(eq(materialsTable.categoryId, categoryId));
+  }
+  if (search) {
+    // MySQL: `like` é case-insensitive com a collation por defeito (utf8mb4_..._ci)
+    conditions.push(like(materialsTable.name, `%${search}%`));
+  }
+  if (minPrice !== undefined) {
+    conditions.push(gte(materialsTable.price, minPrice.toString()));
+  }
+  if (maxPrice !== undefined) {
+    conditions.push(lte(materialsTable.price, maxPrice.toString()));
+  }
+  if (featuredOnly) {
+    conditions.push(eq(materialsTable.isFeatured, true));
+  }
+  if (inStockOnly) {
+    conditions.push(gte(materialsTable.stock, 1));
+  }
+
+  return conditions;
+}
+
+/**
+ * Conta o total de materiais que correspondem aos filtros (para paginação).
+ */
+export async function countMaterials(
+  options: MaterialFilterOptions = {},
+): Promise<number> {
+  const conditions = buildMaterialConditions(options);
+  const result = await db
+    .select({ total: count() })
+    .from(materialsTable)
+    .where(and(...conditions));
+
+  return result[0]?.total ?? 0;
+}
+
+// ============================================
+// MATERIAL IMAGES (1 a 3 por produto)
+// ============================================
+
+// Reexporta a lógica pura de imagens (mantém compatibilidade com quem importa daqui).
+export type { MaterialImageInput };
+export { normalizeMaterialImages };
+
+/**
+ * Devolve as imagens de um material, ordenadas (por-defeito primeiro).
+ */
+export async function getMaterialImages(materialId: number) {
+  return db
+    .select()
+    .from(materialImagesTable)
+    .where(eq(materialImagesTable.materialId, materialId))
+    .orderBy(desc(materialImagesTable.isDefault), asc(materialImagesTable.ordem));
+}
+
+/**
+ * Substitui todas as imagens de um material pela lista fornecida (máx. 3).
+ * Garante exatamente uma imagem por-defeito e devolve o URL dessa imagem
+ * (para manter `material.image` em sincronia, por compatibilidade).
+ */
+export async function setMaterialImages(
+  materialId: number,
+  images: MaterialImageInput[],
+): Promise<string> {
+  const { rows, defaultUrl } = normalizeMaterialImages(images);
+
+  await db
+    .delete(materialImagesTable)
+    .where(eq(materialImagesTable.materialId, materialId));
+
+  if (rows.length === 0) return "";
+
+  await db.insert(materialImagesTable).values(
+    rows.map((r) => ({
+      materialId,
+      url: r.url,
+      ordem: r.ordem,
+      isDefault: r.isDefault,
+    })),
+  );
+
+  return defaultUrl;
+}
 
 // ============================================
 // MATERIAL QUERIES WITH VARIANTS
@@ -57,29 +171,33 @@ export async function getMaterialWithVariants(
  * Listar materiais com variações e filtros
  */
 export async function getMaterialsWithVariants(
-  options?: {
-    categoryId?: number;
-    search?: string;
-    minPrice?: number;
-    maxPrice?: number;
+  options?: MaterialFilterOptions & {
     limit?: number;
     offset?: number;
+    sortBy?: MaterialSortBy;
+    sortOrder?: SortOrder;
+    includeVariants?: boolean;
   },
 ): Promise<MaterialWithCategory[]> {
-  const { categoryId, search, minPrice, maxPrice, limit = 50, offset = 0 } =
-    options || {};
+  const {
+    limit = 50,
+    offset = 0,
+    sortBy = "name",
+    sortOrder = "asc",
+    includeVariants = true,
+    ...filters
+  } = options || {};
 
-  const conditions = [eq(materialsTable.isDeleted, false)]; // Sempre filtrar deletados
+  const conditions = buildMaterialConditions(filters);
 
-  if (categoryId) {
-    conditions.push(eq(materialsTable.categoryId, categoryId));
-  }
-
-  if (search) {
-    conditions.push(
-      ilike(materialsTable.name, `%${search}%`),
-    );
-  }
+  const sortColumns = {
+    name: materialsTable.name,
+    price: materialsTable.price,
+    stock: materialsTable.stock,
+    updatedAt: materialsTable.updatedAt,
+  } as const;
+  const sortColumn = sortColumns[sortBy] ?? materialsTable.name;
+  const orderByClause = sortOrder === "desc" ? desc(sortColumn) : asc(sortColumn);
 
   const materials = await db
     .select()
@@ -93,23 +211,26 @@ export async function getMaterialsWithVariants(
       priceTypesTable,
       eq(materialsTable.priceTypeId, priceTypesTable.id),
     )
-    .orderBy(asc(materialsTable.name))
+    .orderBy(orderByClause)
     .limit(limit)
     .offset(offset);
 
-  console.log(`📦 Found ${materials.length} materials for query:`, {
-    categoryId,
-    search,
-    limit,
-    offset,
-  });
+  // Na listagem do admin não precisamos das variantes — evita o N+1.
+  if (!includeVariants) {
+    return materials.map((item: any) => ({
+      ...item.material,
+      category: item.categoria || { id: 0, name: "Uncategorized" },
+      priceType: item.tipo_preco || null,
+      variants: [],
+    }));
+  }
 
   // Buscar variantes para cada material (if table exists)
   const result: MaterialWithCategory[] = [];
 
   for (const item of materials) {
     let variants: MaterialVariant[] = [];
-    
+
     try {
       variants = await db
         .select()

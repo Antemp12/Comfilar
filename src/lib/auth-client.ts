@@ -36,7 +36,7 @@ export const useCurrentUser = () => {
 // Hook similar to getCurrentUserOrRedirect for client-side use
 // !! Returns only raw (static) data, use getCurrentUserOrRedirect for data from db
 export const useCurrentUserOrRedirect = (
-  forbiddenUrl = "/auth/sign-in",
+  forbiddenUrl = "/auth/login",
   okUrl = "",
   ignoreForbidden = false,
 ) => {

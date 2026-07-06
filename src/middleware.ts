@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTokenFromHeader, validateTokenFormat } from "~/lib/auth-middleware";
+import { getTokenFromHeader, verifySessionTokenEdge } from "~/lib/auth-middleware";
 
 // ============================================
 // MIDDLEWARE DE AUTENTICAÇÃO
 // ============================================
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   // Rotas que requerem autenticação
   const protectedRoutes = [
     "/api/quotes",
@@ -42,27 +42,18 @@ export function middleware(request: NextRequest) {
   }
   const isPublic = publicRoutes.some((route) => pathname.startsWith(route));
 
-  // Se for rota protegida, validar token
+  // Se for rota protegida, validar a assinatura do token (header ou cookie).
   if (isProtected) {
-    const token = getTokenFromHeader(request.headers.get("authorization"));
+    const token =
+      getTokenFromHeader(request.headers.get("authorization")) ||
+      request.cookies.get("auth_token")?.value ||
+      null;
 
-    if (!token) {
-      // Se não tiver token no header, tentar do cookie
-      const cookieToken = request.cookies.get("auth_token")?.value;
-
-      if (!cookieToken || !validateTokenFormat(cookieToken)) {
-        return NextResponse.json(
-          { success: false, message: "Não autenticado" },
-          { status: 401 },
-        );
-      }
-    } else {
-      if (!validateTokenFormat(token)) {
-        return NextResponse.json(
-          { success: false, message: "Token inválido" },
-          { status: 401 },
-        );
-      }
+    if (!token || !(await verifySessionTokenEdge(token))) {
+      return NextResponse.json(
+        { success: false, message: "Não autenticado" },
+        { status: 401 },
+      );
     }
   }
 

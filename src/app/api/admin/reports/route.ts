@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
 import { ordersTable, orderItemsTable, quoteRequestsTable, utilizadorTable, materialsTable } from "~/db/schema";
 import { eq, sql, and, gte, lte, desc } from "drizzle-orm";
+import { validateAdminToken } from "~/lib/auth-api";
 
 /**
  * GET /api/admin/reports
@@ -10,6 +11,10 @@ import { eq, sql, and, gte, lte, desc } from "drizzle-orm";
  * Retorna estatisticas de encomendas e receitas
  */
 export async function GET(req: NextRequest) {
+  const user = await validateAdminToken(req);
+  if (!user || (user.type !== "admin" && user.type !== "funcionario")) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") || "month";

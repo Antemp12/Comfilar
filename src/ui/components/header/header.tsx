@@ -152,12 +152,12 @@ export function Header({ showAuth = true }: HeaderProps) {
                   <Skeleton className="h-10 w-32" />
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Link href="/auth/sign-in">
+                    <Link href="/auth/login">
                       <Button size="sm" variant="ghost">
                         Entrar
                       </Button>
                     </Link>
-                    <Link href="/auth/sign-up">
+                    <Link href="/auth/register">
                       <Button size="sm">Registar</Button>
                     </Link>
                   </div>
@@ -232,7 +232,7 @@ export function Header({ showAuth = true }: HeaderProps) {
                   block rounded-md px-3 py-2 text-base font-medium
                   hover:bg-muted/50
                 `}
-                href="/auth/sign-in"
+                href="/auth/login"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Entrar
@@ -243,7 +243,7 @@ export function Header({ showAuth = true }: HeaderProps) {
                   text-primary-foreground
                   hover:bg-primary/90
                 `}
-                href="/auth/sign-up"
+                href="/auth/register"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Registar

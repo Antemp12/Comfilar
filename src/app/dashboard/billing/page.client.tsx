@@ -37,7 +37,7 @@ export function BillingPageClient({ user }: BillingPageClientProps) {
 
   useEffect(() => {
     if (!user) {
-      router.push("/auth/sign-in");
+      router.push("/auth/login");
       return;
     }
 
