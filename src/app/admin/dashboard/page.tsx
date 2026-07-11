@@ -1,14 +1,13 @@
 import Link from 'next/link';
-import { 
-  PackageIcon, 
-  UsersIcon, 
-  ShoppingCartIcon, 
-  FileTextIcon,
+import {
+  PackageIcon,
+  UsersIcon,
+  ShoppingCartIcon,
   CalendarIcon,
-  ChartIcon 
+  ChartIcon
 } from '~/ui/icons/admin-icons';
 import { db } from '~/db';
-import { utilizadorTable, materialsTable, ordersTable, quoteRequestsTable } from '~/db/schema';
+import { utilizadorTable, materialsTable, ordersTable } from '~/db/schema';
 import { eq } from 'drizzle-orm';
 import { NewNotificationsBanner } from './new-notifications-banner';
 import { QuickSignals } from './quick-signals';
@@ -26,12 +25,6 @@ export default async function AdminDashboardPage() {
     eq(ordersTable.status, 'processamento')
   );
   const totalActiveOrders = encomendasAtivas.length;
-
-  // Contar orçamentos pendentes
-  const orcamentosPendentes = await db.select().from(quoteRequestsTable).where(
-    eq(quoteRequestsTable.status, 'pendente')
-  );
-  const totalPendingQuotes = orcamentosPendentes.length;
   return (
     <div className="space-y-6">
       <div>
@@ -94,21 +87,6 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Orçamentos Pendentes
-              </p>
-              <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
-                {totalPendingQuotes}
-              </p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/20">
-              <FileTextIcon />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Ações Rápidas */}
@@ -179,32 +157,6 @@ export default async function AdminDashboardPage() {
                   {totalActiveOrders > 0
                     ? `${totalActiveOrders} ativa(s)`
                     : "Gerir pedidos de clientes"}
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/admin/quotes"
-            className="group relative rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
-          >
-            {totalPendingQuotes > 0 && (
-              <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-orange-500 px-1.5 text-xs font-bold text-white">
-                {totalPendingQuotes}
-              </span>
-            )}
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <FileTextIcon />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Gerir Orçamentos
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {totalPendingQuotes > 0
-                    ? `${totalPendingQuotes} pendente(s)`
-                    : "Responder a pedidos"}
                 </p>
               </div>
             </div>

@@ -13,8 +13,16 @@ import {
 } from "~/ui/primitives/table";
 import { Card, CardContent, CardHeader } from "~/ui/primitives/card";
 import { Badge } from "~/ui/primitives/badge";
-import { Search, Edit, Trash2, Plus, Calendar, ChevronLeft, ChevronRight, Check, X } from "lucide-react";
+import { Search, Trash2, Plus, Calendar, ChevronLeft, ChevronRight, Check, X, Clock, Save } from "lucide-react";
 import { toast } from "sonner";
+import {
+  MEETING_AVAILABILITY_KEY,
+  MEETING_SLOT_MINUTES,
+  WEEKDAY_LABELS,
+  DEFAULT_AVAILABILITY,
+  parseAvailability,
+  type MeetingAvailability,
+} from "~/lib/meeting-availability";
 import {
   Dialog,
   DialogContent,
@@ -69,10 +77,72 @@ export default function MeetingsPage() {
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
+  // Disponibilidade (dias da semana + intervalo de horas) para os clientes marcarem.
+  const [availability, setAvailability] = useState<MeetingAvailability>(DEFAULT_AVAILABILITY);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+
   useEffect(() => {
     fetchMeetings();
     fetchUsers();
+    fetchAvailability();
   }, []);
+
+  const fetchAvailability = async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/settings?key=${MEETING_AVAILABILITY_KEY}`,
+        { credentials: "include" },
+      );
+      if (res.ok) {
+        const json = (await res.json()) as { data?: { value?: string } | null };
+        setAvailability(parseAvailability(json.data?.value));
+      }
+    } catch (error) {
+      console.error("Erro ao carregar disponibilidade:", error);
+    }
+  };
+
+  const toggleWeekday = (day: number) => {
+    setAvailability((prev) => ({
+      ...prev,
+      weekdays: prev.weekdays.includes(day)
+        ? prev.weekdays.filter((d) => d !== day)
+        : [...prev.weekdays, day].sort((a, b) => a - b),
+    }));
+  };
+
+  const saveAvailability = async () => {
+    if (availability.weekdays.length === 0) {
+      toast.error("Escolhe pelo menos um dia da semana");
+      return;
+    }
+    if (availability.startTime >= availability.endTime) {
+      toast.error("A hora de fim tem de ser depois da hora de início");
+      return;
+    }
+    setSavingAvailability(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          key: MEETING_AVAILABILITY_KEY,
+          value: JSON.stringify(availability),
+        }),
+      });
+      if (res.ok) {
+        toast.success("Disponibilidade guardada");
+      } else {
+        toast.error("Erro ao guardar disponibilidade");
+      }
+    } catch (error) {
+      console.error("Erro:", error);
+      toast.error("Erro ao guardar disponibilidade");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -364,6 +434,75 @@ export default function MeetingsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Painel de Disponibilidade */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-bold">Disponibilidade para reuniões</h2>
+          </div>
+          <p className="text-sm text-gray-600">
+            Define em que dias e horas os clientes podem marcar. As reuniões têm{" "}
+            {MEETING_SLOT_MINUTES} minutos e são geradas automaticamente dentro deste intervalo.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Dias da semana</label>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAY_LABELS.map((label, day) => {
+                  const active = availability.weekdays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleWeekday(day)}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                        active
+                          ? "border-primary bg-primary text-white"
+                          : "border-gray-300 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Hora de início</label>
+                <Input
+                  type="time"
+                  value={availability.startTime}
+                  onChange={(e) =>
+                    setAvailability((p) => ({ ...p, startTime: e.target.value }))
+                  }
+                  className="w-36"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Hora de fim</label>
+                <Input
+                  type="time"
+                  value={availability.endTime}
+                  onChange={(e) =>
+                    setAvailability((p) => ({ ...p, endTime: e.target.value }))
+                  }
+                  className="w-36"
+                />
+              </div>
+              <Button onClick={saveAvailability} disabled={savingAvailability} className="gap-2">
+                <Save className="h-4 w-4" />
+                {savingAvailability ? "A guardar..." : "Guardar disponibilidade"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {view === "calendar" && (
         <Card>

@@ -35,7 +35,7 @@ export function PublicRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push('/dashboard');
+      router.push('/dashboard/home');
     }
   }, [isAuthenticated, loading, router]);
 

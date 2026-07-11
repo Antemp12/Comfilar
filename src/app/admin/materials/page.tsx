@@ -5,9 +5,8 @@ import Link from 'next/link';
 import {
   ArrowDown,
   ArrowUp,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
+  ListFilter,
   Loader2,
   Search,
 } from 'lucide-react';
@@ -22,6 +21,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/ui/primitives/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '~/ui/primitives/dropdown-menu';
+import { TablePagination } from '~/ui/components/table-pagination';
 
 interface Material {
   id: number;
@@ -41,8 +49,6 @@ interface Category {
 type SortBy = 'name' | 'price' | 'stock';
 type SortOrder = 'asc' | 'desc';
 
-const PAGE_SIZE = 20;
-
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -53,12 +59,13 @@ export default function MaterialsPage() {
   // Filtros / ordenação / paginação (estado que vai para o servidor)
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState<string>('');
+  const [categoryIds, setCategoryIds] = useState<number[]>([]);
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Material a eliminar (controla o diálogo de confirmação)
   const [toDelete, setToDelete] = useState<Material | null>(null);
@@ -95,14 +102,14 @@ export default function MaterialsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
+        limit: String(pageSize),
         page: String(page),
         sortBy,
         sortOrder,
         variants: 'false',
       });
       if (search) params.set('search', search);
-      if (categoryId) params.set('categoryId', categoryId);
+      if (categoryIds.length > 0) params.set('categoryId', categoryIds.join(','));
       if (featuredOnly) params.set('featured', 'true');
       if (inStockOnly) params.set('inStock', 'true');
 
@@ -121,7 +128,7 @@ export default function MaterialsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, sortBy, sortOrder, search, categoryId, featuredOnly, inStockOnly]);
+  }, [page, pageSize, sortBy, sortOrder, search, categoryIds, featuredOnly, inStockOnly]);
 
   // --- Seleção em lote ---
   const toggleOne = (id: number) => {
@@ -189,7 +196,7 @@ export default function MaterialsPage() {
       return;
     }
     setPage(1);
-  }, [categoryId, featuredOnly, inStockOnly, sortBy, sortOrder]);
+  }, [categoryIds, featuredOnly, inStockOnly, sortBy, sortOrder, pageSize]);
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -228,17 +235,30 @@ export default function MaterialsPage() {
   };
 
   const hasActiveFilters = useMemo(
-    () => Boolean(search || categoryId || featuredOnly || inStockOnly),
-    [search, categoryId, featuredOnly, inStockOnly],
+    () => Boolean(search || categoryIds.length > 0 || featuredOnly || inStockOnly),
+    [search, categoryIds, featuredOnly, inStockOnly],
   );
 
   const clearFilters = () => {
     setSearchInput('');
     setSearch('');
-    setCategoryId('');
+    setCategoryIds([]);
     setFeaturedOnly(false);
     setInStockOnly(false);
   };
+
+  const toggleCategory = (id: number) => {
+    setCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    );
+  };
+
+  const categoryLabel =
+    categoryIds.length === 0
+      ? 'Todas as categorias'
+      : categoryIds.length === 1
+        ? categories.find((c) => c.id === categoryIds[0])?.name ?? '1 categoria'
+        : `${categoryIds.length} categorias`;
 
   const SortHeader = ({ field, label }: { field: SortBy; label: string }) => (
     <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-400">
@@ -294,19 +314,47 @@ export default function MaterialsPage() {
             />
           </div>
 
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-          >
-            <option value="">Todas as categorias</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.parentCategoryId ? '  ↳ ' : ''}
-                {cat.name}
-              </option>
-            ))}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="justify-between gap-2 md:w-64">
+                <span className="flex items-center gap-2 truncate">
+                  <ListFilter className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{categoryLabel}</span>
+                </span>
+                <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                Categorias
+                {categoryIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryIds([])}
+                    className="text-xs font-normal text-primary hover:underline"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {categories.length === 0 ? (
+                <p className="px-2 py-1.5 text-sm text-gray-500">Sem categorias</p>
+              ) : (
+                categories.map((cat) => (
+                  <DropdownMenuCheckboxItem
+                    key={cat.id}
+                    checked={categoryIds.includes(cat.id)}
+                    onCheckedChange={() => toggleCategory(cat.id)}
+                    onSelect={(e) => e.preventDefault()}
+                    className={cat.parentCategoryId ? "pl-8" : ""}
+                  >
+                    {cat.parentCategoryId ? "- " + cat.name : cat.name}
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
@@ -487,32 +535,17 @@ export default function MaterialsPage() {
       </div>
 
       {/* Paginação */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Página {page} de {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1 || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages || loading}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Seguinte
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+      {total > 0 && (
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          loading={loading}
+          itemLabel="material(is)"
+        />
       )}
 
       {/* Diálogo de confirmação de eliminação */}

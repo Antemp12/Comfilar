@@ -188,11 +188,11 @@ export function ProductCard({
               <div className="mt-1.5">{renderStars()}</div>
               <div className="mt-2 flex items-center gap-1.5">
                 <span className="font-medium text-foreground">
-                  ${Number(product.price).toFixed(2)}
+                  €{Number(product.price).toFixed(2)}
                 </span>
                 {product.originalPrice ? (
                   <span className="text-sm text-muted-foreground line-through">
-                    ${Number(product.originalPrice).toFixed(2)}
+                    €{Number(product.originalPrice).toFixed(2)}
                   </span>
                 ) : null}
               </div>
@@ -215,11 +215,11 @@ export function ProductCard({
             <div className="flex w-full items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span className="font-medium text-foreground">
-                  ${Number(product.price).toFixed(2)}
+                  €{Number(product.price).toFixed(2)}
                 </span>
                 {product.originalPrice ? (
                   <span className="text-sm text-muted-foreground line-through">
-                    ${Number(product.originalPrice).toFixed(2)}
+                    €{Number(product.originalPrice).toFixed(2)}
                   </span>
                 ) : null}
               </div>

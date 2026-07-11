@@ -304,7 +304,7 @@ export function CartClient({ className, mockCart }: CartProps) {
                   onClick={handleClearCart}
                   variant="outline"
                 >
-                  Clear Cart
+                  Limpar Carrinho
                 </Button>
               </div>
             </div>

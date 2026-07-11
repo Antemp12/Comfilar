@@ -12,3 +12,6 @@ next-env.d.ts
 .exe
 .dll
 .env
+
+# Imagens carregadas em runtime
+/public/uploads/

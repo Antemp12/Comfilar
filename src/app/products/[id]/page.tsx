@@ -1,15 +1,15 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { formatCurrency, formatQuantityWithUnit } from "~/lib/comfilar-utils-mysql";
-import { getMaterialWithVariants } from "~/lib/queries/materials-mysql";
+import { getMaterialImages, getMaterialWithVariants } from "~/lib/queries/materials-mysql";
 import { Badge } from "~/ui/primitives/badge";
 import { Separator } from "~/ui/primitives/separator";
 import { Button } from "~/ui/primitives/button";
 
 import { ProductActions } from "./product-actions";
+import { ProductGallery } from "./product-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,12 @@ export default async function ProductPage({ params }: PageProps) {
   const stockValue = Number(product.stock ?? 0);
   const unitLabel = getUnitLabel(product.priceType?.type ?? null);
   const imageSrc = product.image || "/images/placeholder-product.jpg";
+
+  // Galeria: imagens dedicadas (por-defeito primeiro); fallback para a imagem principal.
+  const galleryRows = await getMaterialImages(product.id);
+  const galleryImages = galleryRows.length > 0
+    ? galleryRows.map((img: { url: string }) => img.url)
+    : [imageSrc];
 
   const variantsByName = product.variants.reduce(
     (acc, variant) => {
@@ -64,16 +70,7 @@ export default async function ProductPage({ params }: PageProps) {
 
       <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
-          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border bg-muted">
-            <Image
-              src={imageSrc}
-              alt={product.name}
-              fill
-              sizes="(max-width: 1024px) 100vw, 60vw"
-              className="object-cover"
-              priority
-            />
-          </div>
+          <ProductGallery images={galleryImages} name={product.name} />
 
           <div className="rounded-2xl border bg-card p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Descrição</h2>
@@ -82,24 +79,6 @@ export default async function ProductPage({ params }: PageProps) {
                 "Este produto não tem descrição detalhada ainda."}
             </p>
           </div>
-
-          {(product as any).attributes && Object.keys((product as any).attributes).length > 0 && (
-            <div className="rounded-2xl border bg-card p-6 shadow-sm">
-              <h2 className="text-lg font-semibold">Especificações</h2>
-              <div className="mt-4 space-y-3">
-                {Object.entries((product as any).attributes).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between border-b pb-3 last:border-b-0 last:pb-0">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {key}
-                    </span>
-                    <span className="font-medium text-foreground">
-                      {value as string}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {Object.keys(variantsByName).length > 0 && (
             <div className="rounded-2xl border bg-card p-6 shadow-sm">

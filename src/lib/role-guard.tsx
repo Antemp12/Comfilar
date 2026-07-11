@@ -26,7 +26,7 @@ export function RoleGuard({ children, allowedRoles, redirectTo = '/' }: RoleGuar
       if (user && !allowedRoles.includes(user.type)) {
         // Redirecionar para o dashboard correto do utilizador
         const userDashboard = {
-          cliente: '/dashboard',
+          cliente: '/dashboard/home',
           funcionario: '/funcionario',
           admin: '/admin',
         }[user.type];

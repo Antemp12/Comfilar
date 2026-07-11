@@ -13,7 +13,6 @@ import {
   ChartIcon,
   SettingsIcon,
   StarIcon,
-  FileTextIcon,
   CalendarIcon,
   ChevronDownIcon,
 } from "~/ui/icons/admin-icons";
@@ -51,11 +50,6 @@ const navItems: NavItem[] = [
     icon: <ShoppingCartIcon />,
     name: "Encomendas",
     path: "/admin/orders",
-  },
-  {
-    icon: <FileTextIcon />,
-    name: "Orçamentos",
-    path: "/admin/quotes",
   },
   {
     icon: <CalendarIcon />,

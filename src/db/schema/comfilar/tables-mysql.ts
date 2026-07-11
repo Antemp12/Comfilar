@@ -28,6 +28,7 @@ export const categoriesTable = mysqlTable("categoria", {
   parentCategoryId: int("id_categoria_pai").references((): any => categoriesTable.id, { onDelete: "cascade" }),
   image: text("image"),
   isFeatured: boolean("is_featured").default(false),
+  isActive: boolean("is_active").default(true), // Categoria ativa (visível para clientes) ou desativada
   managedBy: varchar("managed_by", { length: 20 }).default("admin"), // admin ou funcionario
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });

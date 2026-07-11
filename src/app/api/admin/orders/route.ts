@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
-import { ordersTable, orderItemsTable, quoteRequestsTable, utilizadorTable } from "~/db/schema";
+import { ordersTable, orderItemsTable, quoteRequestsTable, utilizadorTable, materialsTable } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { getTokenFromHeader, validateToken, getUserById } from "~/lib/auth-comfilar";
+
+// Limiar de "stock baixo": itens com stock <= este valor (e > 0) geram aviso.
+const LOW_STOCK_THRESHOLD = 10;
 
 /**
  * GET /api/admin/orders
@@ -62,9 +65,26 @@ export async function GET(request: NextRequest) {
             id: orderItemsTable.id,
             quantity: orderItemsTable.quantity,
             unitPrice: orderItemsTable.unitPrice,
+            materialName: materialsTable.name,
+            materialStock: materialsTable.stock,
           })
           .from(orderItemsTable)
+          .leftJoin(materialsTable, eq(orderItemsTable.materialId, materialsTable.id))
           .where(eq(orderItemsTable.orderId, order.id));
+
+        // Avisos de stock: itens sem stock ou com stock baixo.
+        const outOfStockItems = items
+          .filter((it: any) => (it.materialStock ?? 0) <= 0)
+          .map((it: any) => it.materialName)
+          .filter(Boolean);
+        const lowStockItems = items
+          .filter(
+            (it: any) =>
+              (it.materialStock ?? 0) > 0 &&
+              (it.materialStock ?? 0) <= LOW_STOCK_THRESHOLD,
+          )
+          .map((it: any) => it.materialName)
+          .filter(Boolean);
 
         // Buscar informações do quote e cliente
         const quote = await db
@@ -111,6 +131,10 @@ export async function GET(request: NextRequest) {
           status: order.status || "processamento",
           total,
           items: items.length,
+          hasOutOfStock: outOfStockItems.length > 0,
+          hasLowStock: lowStockItems.length > 0,
+          outOfStockItems,
+          lowStockItems,
           createdAt: order.confirmationDate?.toISOString() || new Date().toISOString(),
         };
       }),

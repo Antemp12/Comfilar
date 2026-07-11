@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -9,11 +9,14 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/ui/primitives/button";
 import { Input } from "@/ui/primitives/input";
+import { Badge } from "@/ui/primitives/badge";
+import { Switch } from "@/ui/primitives/switch";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,7 @@ interface Subcategory {
   name: string;
   image: string | null;
   isFeatured: boolean;
+  isActive: boolean;
   parentCategoryId: number | null;
 }
 
@@ -41,9 +45,18 @@ type DialogState =
   | { mode: "edit"; category: Subcategory }
   | null;
 
+// Aceita: vazio, um URL absoluto (http/https) ou um caminho local carregado (/uploads/...).
+const imageValueSchema = z
+  .string()
+  .trim()
+  .refine(
+    (v) => v === "" || v.startsWith("/") || /^https?:\/\//i.test(v),
+    "URL de imagem inválida",
+  );
+
 const categoryFormSchema = z.object({
   name: z.string().trim().min(2, "O nome deve ter pelo menos 2 caracteres"),
-  image: z.string().trim().url("URL de imagem inválida").optional().or(z.literal("")),
+  image: imageValueSchema.optional(),
 });
 
 export default function CategoriesPage() {
@@ -61,10 +74,16 @@ export default function CategoriesPage() {
   const [toDelete, setToDelete] = useState<Subcategory | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // IDs em processo de ativar/desativar (para desativar o switch enquanto guarda)
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/categories?hierarchy=true", {
+      // includeInactive=true: no admin queremos ver também as categorias desativadas.
+      const res = await fetch("/api/categories?hierarchy=true&includeInactive=true", {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Erro ao buscar categorias");
@@ -165,6 +184,58 @@ export default function CategoriesPage() {
     }
   };
 
+  const handleFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Limpa o valor para permitir re-selecionar o mesmo ficheiro depois.
+    e.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        credentials: "include",
+        body: fd,
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data?.error || "Erro ao carregar imagem");
+      setFormImage(data.url);
+      if (formErrors.image) setFormErrors((p) => ({ ...p, image: undefined }));
+      toast.success("Imagem carregada");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao carregar imagem");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleToggleActive = async (category: Subcategory) => {
+    const next = !category.isActive;
+    setTogglingIds((prev) => new Set(prev).add(category.id));
+    try {
+      const res = await fetch(`/api/admin/categories/${category.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isActive: next }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data?.error || "Erro ao atualizar estado");
+      toast.success(next ? "Categoria ativada" : "Categoria desativada");
+      fetchCategories();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao atualizar estado");
+    } finally {
+      setTogglingIds((prev) => {
+        const nextSet = new Set(prev);
+        nextSet.delete(category.id);
+        return nextSet;
+      });
+    }
+  };
+
   const handleDelete = async () => {
     if (!toDelete) return;
     setDeleting(true);
@@ -251,16 +322,34 @@ export default function CategoriesPage() {
                       <ChevronRight className="h-5 w-5" />
                     )}
                   </button>
-                  <Thumb image={cat.image} name={cat.name} />
-                  <div className="flex-1">
+                  <div className={cat.isActive ? "" : "opacity-50"}>
+                    <Thumb image={cat.image} name={cat.name} />
+                  </div>
+                  <div className={`flex-1 ${cat.isActive ? "" : "opacity-60"}`}>
                     <span className="font-medium text-gray-900 dark:text-white">
                       {cat.name}
                     </span>
+                    {!cat.isActive && (
+                      <Badge variant="secondary" className="ml-2">
+                        Inativa
+                      </Badge>
+                    )}
                     <span className="ml-2 text-xs text-gray-400">
                       {cat.subcategories.length} subcategoria(s)
                     </span>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
+                    <label
+                      className="mr-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+                      title={cat.isActive ? "Desativar categoria" : "Ativar categoria"}
+                    >
+                      <Switch
+                        checked={cat.isActive}
+                        disabled={togglingIds.has(cat.id)}
+                        onCheckedChange={() => handleToggleActive(cat)}
+                      />
+                      {cat.isActive ? "Ativa" : "Inativa"}
+                    </label>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -303,11 +392,28 @@ export default function CategoriesPage() {
                           key={sub.id}
                           className="flex items-center gap-3 px-14 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/40"
                         >
-                          <Thumb image={sub.image} name={sub.name} />
-                          <span className="flex-1 text-sm text-gray-800 dark:text-gray-200">
+                          <div className={sub.isActive ? "" : "opacity-50"}>
+                            <Thumb image={sub.image} name={sub.name} />
+                          </div>
+                          <span
+                            className={`flex-1 text-sm text-gray-800 dark:text-gray-200 ${
+                              sub.isActive ? "" : "opacity-60"
+                            }`}
+                          >
                             {sub.name}
+                            {!sub.isActive && (
+                              <Badge variant="secondary" className="ml-2">
+                                Inativa
+                              </Badge>
+                            )}
                           </span>
-                          <div className="flex gap-1">
+                          <div className="flex items-center gap-1">
+                            <Switch
+                              checked={sub.isActive}
+                              disabled={togglingIds.has(sub.id)}
+                              onCheckedChange={() => handleToggleActive(sub)}
+                              title={sub.isActive ? "Desativar" : "Ativar"}
+                            />
                             <Button
                               variant="ghost"
                               size="sm"
@@ -355,7 +461,9 @@ export default function CategoriesPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Nome</label>
+              <label className="mb-1 block text-sm font-medium">
+                Nome<span className="ml-0.5 text-red-500">*</span>
+              </label>
               <Input
                 value={formName}
                 onChange={(e) => {
@@ -375,8 +483,45 @@ export default function CategoriesPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">
-                Imagem (URL) — opcional
+                Imagem — opcional
               </label>
+
+              {/* Carregar ficheiro do PC */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                className="hidden"
+                onChange={handleFilePicked}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Carregar do PC
+                </Button>
+                {formImage.trim() && (
+                  <button
+                    type="button"
+                    className="text-sm text-red-600 hover:underline dark:text-red-400"
+                    onClick={() => setFormImage("")}
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+
+              <p className="my-2 text-center text-xs text-gray-400">ou usar um URL</p>
+
               <Input
                 value={formImage}
                 onChange={(e) => {

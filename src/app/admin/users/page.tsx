@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "~/ui/primitives/dialog";
+import { TablePagination } from "~/ui/components/table-pagination";
 
 interface User {
   id: number;
@@ -39,6 +40,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -197,6 +200,20 @@ export default function UsersPage() {
         user?.company?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [users, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = useMemo(
+    () => filteredUsers.slice((page - 1) * pageSize, page * pageSize),
+    [filteredUsers, page, pageSize],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const roleColors = {
     admin: "bg-red-100 text-red-800",
@@ -374,7 +391,7 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user) => (
+                  paginatedUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell className="text-sm">{user.email}</TableCell>
@@ -433,6 +450,19 @@ export default function UsersPage() {
               </TableBody>
             </Table>
           </div>
+          {filteredUsers.length > 0 && (
+            <div className="mt-4">
+              <TablePagination
+                page={page}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                total={filteredUsers.length}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                itemLabel="utilizador(es)"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

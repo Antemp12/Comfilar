@@ -34,6 +34,7 @@ export async function PUT(
       parentCategoryId?: unknown;
       image?: unknown;
       isFeatured?: unknown;
+      isActive?: unknown;
     };
 
     const current = await db
@@ -71,6 +72,11 @@ export async function PUT(
     // Destaque
     if (body.isFeatured !== undefined) {
       updates.isFeatured = Boolean(body.isFeatured);
+    }
+
+    // Estado ativo/inativo
+    if (body.isActive !== undefined) {
+      updates.isActive = Boolean(body.isActive);
     }
 
     // Hierarquia (parentCategoryId)

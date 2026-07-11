@@ -15,6 +15,16 @@ import { Textarea } from "~/ui/primitives/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
 import { Checkbox } from "~/ui/primitives/checkbox";
 import Image from "next/image";
+import {
+  MEETING_AVAILABILITY_KEY,
+  MEETING_SLOT_MINUTES,
+  DEFAULT_AVAILABILITY,
+  parseAvailability,
+  generateSlots,
+  addMinutesToTime,
+  WEEKDAY_LABELS,
+  type MeetingAvailability,
+} from "~/lib/meeting-availability";
 
 type Step = 1 | 2 | 3;
 
@@ -25,6 +35,28 @@ export default function CheckoutPage() {
   const [currentStep, setCurrentStep] = React.useState<Step>(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showSuccessModal, setShowSuccessModal] = React.useState(false);
+
+  // Agendamento é opcional: só aparece se o cliente escolher "Sim".
+  const [wantsMeeting, setWantsMeeting] = React.useState(false);
+  const [availability, setAvailability] = React.useState<MeetingAvailability>(DEFAULT_AVAILABILITY);
+  const timeSlots = React.useMemo(
+    () => generateSlots(availability.startTime, availability.endTime, MEETING_SLOT_MINUTES),
+    [availability],
+  );
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/settings?key=${MEETING_AVAILABILITY_KEY}`);
+        if (res.ok) {
+          const json = (await res.json()) as { data?: { value?: string } | null };
+          setAvailability(parseAvailability(json.data?.value));
+        }
+      } catch {
+        /* usa o valor por defeito */
+      }
+    })();
+  }, []);
 
   const [formData, setFormData] = React.useState({
     // Etapa 1: Informações
@@ -72,16 +104,22 @@ export default function CheckoutPage() {
   };
 
   const handleSubmit = async () => {
-    // Validar agendamento obrigatório
-    if (!formData.meetingDate || !formData.meetingTime) {
-      toast.error("Por favor, preencha a data e hora do agendamento");
-      return;
-    }
-
-    // Validar notas obrigatórias
-    if (!formData.meetingNotes || formData.meetingNotes.trim().length === 0) {
-      toast.error("Por favor, descreva o motivo da reunião");
-      return;
+    // Agendamento é opcional. Só validar se o cliente escolheu agendar.
+    if (wantsMeeting) {
+      if (!formData.meetingDate || !formData.meetingTime) {
+        toast.error("Por favor, preencha a data e hora do agendamento");
+        return;
+      }
+      const [y, m, d] = formData.meetingDate.split("-").map(Number);
+      const weekday = new Date(y, (m || 1) - 1, d || 1).getDay();
+      if (!availability.weekdays.includes(weekday)) {
+        toast.error("Esse dia não está disponível para reuniões");
+        return;
+      }
+      if (!formData.meetingNotes || formData.meetingNotes.trim().length === 0) {
+        toast.error("Por favor, descreva o motivo da reunião");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -116,19 +154,19 @@ export default function CheckoutPage() {
           deliveryPostalCode: formData.deliveryPostalCode,
           contactPhone: formData.contactPhone,
           notes: formData.notes,
-          meetingDate: formData.meetingDate,
-          meetingTime: formData.meetingTime,
-          meetingNotes: formData.meetingNotes,
+          meetingDate: wantsMeeting ? formData.meetingDate : "",
+          meetingTime: wantsMeeting ? formData.meetingTime : "",
+          meetingNotes: wantsMeeting ? formData.meetingNotes : "",
           total,
         }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = (await response.json()) as { error?: string };
         throw new Error(error.error || "Erro ao criar encomenda");
       }
 
-      const result = await response.json();
+      await response.json();
       
       // Mostrar o modal de sucesso (sem limpar carrinho ainda)
       setShowSuccessModal(true);
@@ -195,7 +233,7 @@ export default function CheckoutPage() {
               3
             </div>
             <span className={`ml-2 font-medium ${currentStep >= 3 ? 'text-gray-900' : 'text-gray-400'}`}>
-              Agendamento
+              Confirmar
             </span>
           </div>
         </div>
@@ -342,66 +380,116 @@ export default function CheckoutPage() {
         </Card>
       )}
 
-      {/* Step 3: Agendamento */}
+      {/* Step 3: Confirmar (agendamento opcional) */}
       {currentStep === 3 && (
         <Card>
           <CardHeader>
-            <CardTitle>Agendamento *</CardTitle>
+            <CardTitle>Confirmar Encomenda</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-600 mb-4">
-              Agende uma reunião ou visita técnica relacionada com esta encomenda.
-            </p>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="meetingDate">Data *</Label>
-                <Input
-                  id="meetingDate"
-                  type="date"
-                  value={formData.meetingDate}
-                  onChange={(e) => setFormData({ ...formData, meetingDate: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="meetingTime">Hora *</Label>
-                <Input
-                  id="meetingTime"
-                  type="time"
-                  value={formData.meetingTime}
-                  onChange={(e) => setFormData({ ...formData, meetingTime: e.target.value })}
-                  required
-                />
+            {/* Quer agendar uma reunião? Sim / Não */}
+            <div className="rounded-lg border p-4">
+              <p className="text-sm font-medium text-gray-900">
+                Quer agendar uma reunião relacionada com esta encomenda?
+              </p>
+              <p className="text-sm text-gray-600 mt-1">
+                É opcional — pode finalizar sem marcar reunião.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  type="button"
+                  variant={wantsMeeting ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setWantsMeeting(true);
+                    if (!formData.meetingTime && timeSlots.length > 0) {
+                      setFormData((prev) => ({ ...prev, meetingTime: timeSlots[0] }));
+                    }
+                  }}
+                >
+                  Sim, quero agendar
+                </Button>
+                <Button
+                  type="button"
+                  variant={!wantsMeeting ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setWantsMeeting(false)}
+                >
+                  Não, obrigado
+                </Button>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="meetingNotes">Motivo da Reunião *</Label>
-              <Textarea
-                id="meetingNotes"
-                value={formData.meetingNotes}
-                onChange={(e) => setFormData({ ...formData, meetingNotes: e.target.value })}
-                placeholder="Descreva o motivo ou objetivo da reunião..."
-                rows={3}
-                required
-              />
-              <p className="text-xs text-gray-500">Campo obrigatório</p>
-            </div>
+            {wantsMeeting && (
+              <>
+                <p className="text-xs text-gray-500">
+                  Disponível:{" "}
+                  {availability.weekdays
+                    .slice()
+                    .sort((a, b) => a - b)
+                    .map((d) => WEEKDAY_LABELS[d])
+                    .join(", ")}{" "}
+                  · {availability.startTime}–{availability.endTime} · reuniões de{" "}
+                  {MEETING_SLOT_MINUTES} min
+                </p>
 
-            <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
-              <div className="flex gap-2">
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-yellow-900">
-                  <p className="font-semibold">Pedido de Agendamento</p>
-                  <p className="mt-1">
-                    Este agendamento será enviado como um <strong>pedido de reunião</strong> que precisará ser 
-                    <strong> aprovado pela nossa equipa</strong>. Receberá uma notificação assim que o pedido for analisado.
-                  </p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingDate">Data *</Label>
+                    <Input
+                      id="meetingDate"
+                      type="date"
+                      value={formData.meetingDate}
+                      onChange={(e) => setFormData({ ...formData, meetingDate: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="meetingTime">Horário ({MEETING_SLOT_MINUTES} min) *</Label>
+                    {timeSlots.length === 0 ? (
+                      <p className="text-sm text-gray-500">Sem horários disponíveis.</p>
+                    ) : (
+                      <select
+                        id="meetingTime"
+                        value={formData.meetingTime}
+                        onChange={(e) => setFormData({ ...formData, meetingTime: e.target.value })}
+                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {timeSlots.map((t) => (
+                          <option key={t} value={t}>
+                            {t} — {addMinutesToTime(t, MEETING_SLOT_MINUTES)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meetingNotes">Motivo da Reunião *</Label>
+                  <Textarea
+                    id="meetingNotes"
+                    value={formData.meetingNotes}
+                    onChange={(e) => setFormData({ ...formData, meetingNotes: e.target.value })}
+                    placeholder="Descreva o motivo ou objetivo da reunião..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+                  <div className="flex gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-yellow-900">
+                      <p className="font-semibold">Pedido de Agendamento</p>
+                      <p className="mt-1">
+                        Este agendamento será enviado como um <strong>pedido de reunião</strong> que precisará ser
+                        <strong> aprovado pela nossa equipa</strong>. Receberá uma notificação assim que o pedido for analisado.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Summary */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
@@ -487,8 +575,8 @@ export default function CheckoutPage() {
               onClick={() => {
                 clearCart();
                 setShowSuccessModal(false);
-                router.push("/dashboard");
-              }} 
+                router.push("/dashboard/home");
+              }}
               className="w-full"
             >
               Voltar à Página Inicial

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
 import { categoriesTable } from "~/db/schema";
-import { isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 /**
  * GET /api/categories
@@ -14,13 +14,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const mainOnly = searchParams.get("mainOnly") === "true";
     const hierarchy = searchParams.get("hierarchy") === "true";
+    // Por defeito só devolvemos categorias ativas (o que os clientes veem).
+    // O admin passa includeInactive=true para ver e gerir também as desativadas.
+    const includeInactive = searchParams.get("includeInactive") === "true";
+    // Condição de "ativa": is_active = 1 (registos antigos foram preenchidos com 1).
+    const activeOnly = eq(categoriesTable.isActive, true);
 
     if (mainOnly) {
       // Retornar apenas categorias principais (sem parentCategoryId)
       const mainCategories = await db
         .select()
         .from(categoriesTable)
-        .where(isNull(categoriesTable.parentCategoryId));
+        .where(
+          includeInactive
+            ? isNull(categoriesTable.parentCategoryId)
+            : and(isNull(categoriesTable.parentCategoryId), activeOnly),
+        );
 
       return NextResponse.json(
         {
@@ -40,10 +49,17 @@ export async function GET(request: NextRequest) {
       const mainCategories = await db
         .select()
         .from(categoriesTable)
-        .where(isNull(categoriesTable.parentCategoryId));
+        .where(
+          includeInactive
+            ? isNull(categoriesTable.parentCategoryId)
+            : and(isNull(categoriesTable.parentCategoryId), activeOnly),
+        );
 
-      // Buscar todas as subcategorias
-      const allSubcategories = await db.select().from(categoriesTable);
+      // Buscar todas as subcategorias (filtradas por estado, salvo no modo admin)
+      const allSubcategories = await db
+        .select()
+        .from(categoriesTable)
+        .where(includeInactive ? undefined : activeOnly);
 
       // Montar hierarquia
       const categoriesWithSubs = mainCategories.map((main: typeof mainCategories[0]) => ({
@@ -52,6 +68,7 @@ export async function GET(request: NextRequest) {
         parentCategoryId: null,
         image: main.image,
         isFeatured: main.isFeatured || false,
+        isActive: main.isActive ?? true,
         subcategories: allSubcategories
           .filter((sub: typeof allSubcategories[0]) => sub.parentCategoryId === main.id)
           .map((sub: typeof allSubcategories[0]) => ({
@@ -60,6 +77,7 @@ export async function GET(request: NextRequest) {
             parentCategoryId: sub.parentCategoryId,
             image: sub.image,
             isFeatured: sub.isFeatured || false,
+            isActive: sub.isActive ?? true,
           })),
       }));
 
@@ -73,7 +91,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Retornar todas as categorias (sem hierarquia)
-    const categories = await db.select().from(categoriesTable);
+    const categories = await db
+      .select()
+      .from(categoriesTable)
+      .where(includeInactive ? undefined : activeOnly);
 
     return NextResponse.json(
       {
@@ -84,6 +105,7 @@ export async function GET(request: NextRequest) {
           parentCategoryId: c.parentCategoryId,
           image: c.image,
           isFeatured: c.isFeatured || false,
+          isActive: c.isActive ?? true,
         })),
       },
       { status: 200 },

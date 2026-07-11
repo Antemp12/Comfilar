@@ -8,6 +8,7 @@
     "build": "next build",
     "dev": "next dev --turbopack",
     "db:push": "drizzle-kit push",
+    "db:sql": "node scripts/db-sql.mjs",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --import tsx src/db/seed.ts",
     "db:auth": "bun src/lib/auth-db.ts",

@@ -10,6 +10,7 @@ import { Input } from "~/ui/primitives/input";
 import { Card, CardContent, CardFooter, CardHeader } from "~/ui/primitives/card";
 import { Badge } from "~/ui/primitives/badge";
 import { PromotionsBanner } from "~/ui/components/promotions-banner";
+import { TablePagination } from "~/ui/components/table-pagination";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -61,12 +62,15 @@ export default function ProductsPage() {
   const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  // Multi-seleção: podes escolher várias categorias/subcategorias. Vazio = todas.
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState<"name" | "price-asc" | "price-desc">("name");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [attributeFilters, setAttributeFilters] = useState<Record<number | string, string[]>>({});
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   // Restaurar filtros do localStorage ao montar o componente
   useEffect(() => {
@@ -75,13 +79,13 @@ export default function ProductsPage() {
       try {
         const parsed = JSON.parse(savedFilters) as {
           searchTerm?: string;
-          selectedCategory?: number | null;
+          selectedCategories?: number[];
           sortBy?: "name" | "price-asc" | "price-desc";
           minPrice?: string;
           maxPrice?: string;
         };
         setSearchTerm(parsed.searchTerm || "");
-        setSelectedCategory(parsed.selectedCategory ?? null);
+        setSelectedCategories(Array.isArray(parsed.selectedCategories) ? parsed.selectedCategories : []);
         setSortBy(parsed.sortBy || "name");
         setMinPrice(parsed.minPrice || "");
         setMaxPrice(parsed.maxPrice || "");
@@ -150,16 +154,19 @@ export default function ProductsPage() {
   useEffect(() => {
     localStorage.setItem("productFilters", JSON.stringify({
       searchTerm,
-      selectedCategory,
+      selectedCategories,
       sortBy,
       minPrice,
       maxPrice
     }));
-  }, [searchTerm, selectedCategory, sortBy, minPrice, maxPrice]);
+  }, [searchTerm, selectedCategories, sortBy, minPrice, maxPrice]);
+
+  // Atributos dinâmicos só fazem sentido com UMA categoria selecionada.
+  const attributeCategoryId = selectedCategories.length === 1 ? selectedCategories[0] : null;
 
   // Fetch category attributes when selected category changes
   useEffect(() => {
-    if (selectedCategory === null) {
+    if (attributeCategoryId === null) {
       setCategoryAttributes([]);
       setAttributeFilters({});
       return;
@@ -167,7 +174,7 @@ export default function ProductsPage() {
 
     async function fetchAttributes() {
       try {
-        const res = await fetch(`/api/categories/${selectedCategory}/attributes`);
+        const res = await fetch(`/api/categories/${attributeCategoryId}/attributes`);
         if (res.ok) {
           const data = (await res.json()) as any;
           
@@ -207,7 +214,7 @@ export default function ProductsPage() {
           // Converter para o formato esperado - usar nome do atributo para filtering
           const formattedAttrs = Array.from(attributesByName.entries()).map(([normalizedName, attr]) => ({
             id: normalizedName, // Use normalized name as ID for filtering against material.attributes keys
-            categoryId: selectedCategory as number,
+            categoryId: attributeCategoryId as number,
             name: attr.name, // Display the original name
             type: "select" as const,
             values: Array.from(attr.values)
@@ -228,7 +235,7 @@ export default function ProductsPage() {
     }
 
     fetchAttributes();
-  }, [selectedCategory]);
+  }, [attributeCategoryId]);
 
   // Filter and sort materials
   const filteredMaterials = useMemo(() => {
@@ -244,20 +251,8 @@ export default function ProductsPage() {
       );
     }
 
-    // Filter by category (include subcategories)
-    if (selectedCategory !== null) {
-      // Helper to get all category IDs including subcategories
-      const getCategoryIds = (categoryId: number): number[] => {
-        const ids = [categoryId];
-        const category = findCategoryById(categoryId, mainCategories);
-        if (category?.subcategories) {
-          category.subcategories.forEach((sub) => {
-            ids.push(...getCategoryIds(sub.id));
-          });
-        }
-        return ids;
-      };
-
+    // Filter by category (várias; uma categoria-mãe inclui as subcategorias)
+    if (selectedCategories.length > 0) {
       // Helper to find category by id recursively
       const findCategoryById = (id: number, cats: Category[]): Category | null => {
         for (const cat of cats) {
@@ -270,8 +265,21 @@ export default function ProductsPage() {
         return null;
       };
 
-      const categoryIds = getCategoryIds(selectedCategory);
-      result = result.filter((m) => categoryIds.includes(m.categoryId));
+      // Helper to get all category IDs including subcategories
+      const getCategoryIds = (categoryId: number): number[] => {
+        const ids = [categoryId];
+        const category = findCategoryById(categoryId, mainCategories);
+        if (category?.subcategories) {
+          category.subcategories.forEach((sub) => {
+            ids.push(...getCategoryIds(sub.id));
+          });
+        }
+        return ids;
+      };
+
+      const allowedIds = new Set<number>();
+      selectedCategories.forEach((id) => getCategoryIds(id).forEach((cid) => allowedIds.add(cid)));
+      result = result.filter((m) => allowedIds.has(m.categoryId));
     }
 
     if (!Number.isNaN(min) && min !== undefined) {
@@ -324,7 +332,24 @@ export default function ProductsPage() {
     });
 
     return result;
-  }, [materials, searchTerm, selectedCategory, sortBy, minPrice, maxPrice, mainCategories, attributeFilters]);
+  }, [materials, searchTerm, selectedCategories, sortBy, minPrice, maxPrice, mainCategories, attributeFilters]);
+
+  // Paginação client-side sobre os resultados filtrados.
+  const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / pageSize));
+  const paginatedMaterials = useMemo(
+    () => filteredMaterials.slice((page - 1) * pageSize, page * pageSize),
+    [filteredMaterials, page, pageSize],
+  );
+
+  // Sempre que os filtros (ou o tamanho de página) mudam, volta à página 1.
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedCategories, sortBy, minPrice, maxPrice, attributeFilters, pageSize]);
+
+  // Se a página atual deixar de existir (ex.: menos resultados), corrige.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const bestSellers = useMemo(() => {
     const pinned = filteredMaterials.filter((m) => m.isBestSeller);
@@ -383,6 +408,36 @@ export default function ProductsPage() {
     return counts;
   }, [materials, mainCategories]);
 
+  // Breadcrumb da(s) categoria(s) selecionada(s) no filtro.
+  const categoryBreadcrumb = useMemo(() => {
+    if (selectedCategories.length === 0) return null;
+
+    const findWithParent = (
+      id: number,
+    ): { node: Category; parent: Category | null } | null => {
+      for (const cat of mainCategories) {
+        if (cat.id === id) return { node: cat, parent: null };
+        const sub = cat.subcategories?.find((s) => s.id === id);
+        if (sub) return { node: sub, parent: cat };
+      }
+      return null;
+    };
+
+    if (selectedCategories.length === 1) {
+      const found = findWithParent(selectedCategories[0]);
+      if (!found) return null;
+      return {
+        parent: found.parent ? { id: found.parent.id, name: found.parent.name } : null,
+        label: found.node.name,
+      };
+    }
+
+    const names = selectedCategories
+      .map((id) => findWithParent(id)?.node.name)
+      .filter((n): n is string => Boolean(n));
+    return { parent: null, label: names.join(", ") };
+  }, [selectedCategories, mainCategories]);
+
   // Adicionar ao carrinho - com verificação de autenticação
   const handleAddToCart = (material: Material) => {
     if (!isAuthenticated) {
@@ -422,6 +477,35 @@ export default function ProductsPage() {
       <div className="container mx-auto max-w-7xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900">Produtos</h1>
+          {categoryBreadcrumb && (
+            <nav className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+              <Link href="/" className="hover:text-blue-700">
+                Início
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <button
+                type="button"
+                onClick={() => setSelectedCategories([])}
+                className="hover:text-blue-700"
+              >
+                Produtos
+              </button>
+              {categoryBreadcrumb.parent && (
+                <>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCategories([categoryBreadcrumb.parent!.id])}
+                    className="hover:text-blue-700"
+                  >
+                    {categoryBreadcrumb.parent.name}
+                  </button>
+                </>
+              )}
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-medium text-slate-900">{categoryBreadcrumb.label}</span>
+            </nav>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -436,7 +520,7 @@ export default function ProductsPage() {
                   </div>
                   <button
                     onClick={() => {
-                      setSelectedCategory(null);
+                      setSelectedCategories([]);
                       setSearchTerm("");
                       setMinPrice("");
                       setMaxPrice("");
@@ -457,11 +541,10 @@ export default function ProductsPage() {
                   <li>
                     <label className="flex items-center gap-2 cursor-pointer group">
                       <input
-                        type="radio"
-                        name="category"
-                        checked={selectedCategory === null}
-                        onChange={() => setSelectedCategory(null)}
-                        className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                        type="checkbox"
+                        checked={selectedCategories.length === 0}
+                        onChange={() => setSelectedCategories([])}
+                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                       />
                       <span className="text-sm text-slate-700 group-hover:text-slate-900">
                         Todas as categorias
@@ -497,11 +580,16 @@ export default function ProductsPage() {
                         )}
                         <label className="flex flex-1 items-center gap-2 cursor-pointer group">
                           <input
-                            type="radio"
-                            name="category"
-                            checked={selectedCategory === cat.id}
-                            onChange={() => setSelectedCategory(cat.id)}
-                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                            type="checkbox"
+                            checked={selectedCategories.includes(cat.id)}
+                            onChange={() =>
+                              setSelectedCategories((prev) =>
+                                prev.includes(cat.id)
+                                  ? prev.filter((c) => c !== cat.id)
+                                  : [...prev, cat.id],
+                              )
+                            }
+                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                           />
                           <span className="text-sm font-medium text-slate-800 group-hover:text-slate-900">
                             {cat.name}
@@ -519,11 +607,16 @@ export default function ProductsPage() {
                             <li key={subcat.id}>
                               <label className="flex items-center gap-2 cursor-pointer group">
                                 <input
-                                  type="radio"
-                                  name="category"
-                                  checked={selectedCategory === subcat.id}
-                                  onChange={() => setSelectedCategory(subcat.id)}
-                                  className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                  type="checkbox"
+                                  checked={selectedCategories.includes(subcat.id)}
+                                  onChange={() =>
+                                    setSelectedCategories((prev) =>
+                                      prev.includes(subcat.id)
+                                        ? prev.filter((c) => c !== subcat.id)
+                                        : [...prev, subcat.id],
+                                    )
+                                  }
+                                  className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                                 />
                                 <span className="text-sm text-slate-700 group-hover:text-slate-900">
                                   {subcat.name}
@@ -773,7 +866,7 @@ export default function ProductsPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                {filteredMaterials.map((material) => (
+                {paginatedMaterials.map((material) => (
                   <Card key={material.id} className="flex flex-col hover:shadow-md transition-shadow">
                     <CardHeader className="p-0">
                       <div className="relative w-full h-44 bg-slate-100 rounded-t-lg overflow-hidden">
@@ -856,6 +949,20 @@ export default function ProductsPage() {
                     </CardFooter>
                   </Card>
                 ))}
+              </div>
+            )}
+
+            {filteredMaterials.length > 0 && (
+              <div className="mt-8">
+                <TablePagination
+                  page={page}
+                  totalPages={totalPages}
+                  pageSize={pageSize}
+                  total={filteredMaterials.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  itemLabel="produto(s)"
+                />
               </div>
             )}
           </section>

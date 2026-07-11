@@ -31,13 +31,16 @@ import { Download, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReportData {
+  period: string;
   totalRevenue: number;
   totalOrders: number;
-  totalQuotes: number;
   totalUsers: number;
+  lowStockCount: number;
   topProducts: Array<{ name: string; sales: number; revenue: number }>;
   revenueByMonth: Array<{ month: string; revenue: number }>;
+  revenueByCategory: Array<{ category: string; revenue: number }>;
   ordersByStatus: Array<{ status: string; count: number }>;
+  lowStockProducts: Array<{ name: string; stock: number }>;
 }
 
 export default function ReportsPage() {
@@ -53,7 +56,7 @@ export default function ReportsPage() {
     try {
       const res = await fetch(`/api/admin/reports?period=${dateRange}`);
       if (res.ok) {
-        const reportData = await res.json();
+        const reportData = (await res.json()) as { data: ReportData };
         setData(reportData.data);
       }
     } catch (error) {
@@ -64,9 +67,57 @@ export default function ReportsPage() {
     }
   };
 
-  const handleExportPDF = () => {
-    toast.success("Relatório exportado com sucesso");
-    // TODO: Implementar export PDF
+  // Gera e descarrega um CSV com o resumo do relatório.
+  const handleExportCSV = () => {
+    if (!data) return;
+    const lines: string[] = [];
+    const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+
+    lines.push("Resumo");
+    lines.push(`${esc("Receita Total (€)")},${esc(data.totalRevenue.toFixed(2))}`);
+    lines.push(`${esc("Encomendas")},${esc(data.totalOrders)}`);
+    lines.push(`${esc("Utilizadores")},${esc(data.totalUsers)}`);
+    lines.push(`${esc("Materiais com stock baixo")},${esc(data.lowStockCount)}`);
+    lines.push("");
+
+    lines.push("Produtos Mais Vendidos");
+    lines.push([esc("Produto"), esc("Vendas"), esc("Receita (€)")].join(","));
+    data.topProducts.forEach((p) =>
+      lines.push([esc(p.name), esc(p.sales), esc(p.revenue.toFixed(2))].join(",")),
+    );
+    lines.push("");
+
+    lines.push("Receita por Mês");
+    lines.push([esc("Mês"), esc("Receita (€)")].join(","));
+    data.revenueByMonth.forEach((m) =>
+      lines.push([esc(m.month), esc(m.revenue.toFixed(2))].join(",")),
+    );
+    lines.push("");
+
+    lines.push("Receita por Categoria");
+    lines.push([esc("Categoria"), esc("Receita (€)")].join(","));
+    data.revenueByCategory.forEach((c) =>
+      lines.push([esc(c.category), esc(c.revenue.toFixed(2))].join(",")),
+    );
+    lines.push("");
+
+    lines.push("Materiais com Stock Baixo");
+    lines.push([esc("Material"), esc("Stock")].join(","));
+    data.lowStockProducts.forEach((p) =>
+      lines.push([esc(p.name), esc(p.stock)].join(",")),
+    );
+
+    // BOM para o Excel abrir com acentos corretos.
+    const blob = new Blob(["﻿" + lines.join("\r\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio-${dateRange}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Relatório exportado (CSV)");
   };
 
   if (loading || !data) {
@@ -102,9 +153,9 @@ export default function ReportsPage() {
             <option value="quarter">Este Trimestre</option>
             <option value="year">Este Ano</option>
           </select>
-          <Button onClick={handleExportPDF}>
+          <Button onClick={handleExportCSV}>
             <Download className="h-4 w-4 mr-2" />
-            Exportar PDF
+            Exportar CSV
           </Button>
         </div>
       </div>
@@ -123,7 +174,7 @@ export default function ReportsPage() {
             </div>
             <p className="text-xs text-gray-500 mt-1">
               <TrendingUp className="inline h-3 w-3 mr-1" />
-              +12% vs período anterior
+              No período selecionado
             </p>
           </CardContent>
         </Card>
@@ -136,19 +187,25 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.totalOrders}</div>
-            <p className="text-xs text-gray-500 mt-1">Pedidos processados</p>
+            <p className="text-xs text-gray-500 mt-1">No período selecionado</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Orçamentos
+              Stock Baixo
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.totalQuotes}</div>
-            <p className="text-xs text-gray-500 mt-1">Pedidos recebidos</p>
+            <div
+              className={`text-2xl font-bold ${
+                data.lowStockCount > 0 ? "text-amber-600" : ""
+              }`}
+            >
+              {data.lowStockCount}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Materiais a repor</p>
           </CardContent>
         </Card>
 
@@ -177,7 +234,7 @@ export default function ReportsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value) => `€${value.toFixed(2)}`} />
+                <Tooltip formatter={(value) => `€${Number(value).toFixed(2)}`} />
                 <Legend />
                 <Line
                   type="monotone"
@@ -213,6 +270,77 @@ export default function ReportsPage() {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Receita por categoria + Stock baixo */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Receita por Categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.revenueByCategory.length === 0 ? (
+              <p className="py-12 text-center text-sm text-gray-500">
+                Sem vendas no período
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={data.revenueByCategory}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="category" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `€${Number(value).toFixed(2)}`} />
+                  <Bar dataKey="revenue" fill="#10b981" name="Receita (€)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Materiais com Stock Baixo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-h-[300px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Material</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.lowStockProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-center py-4">
+                        Todos os materiais têm stock suficiente
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    data.lowStockProducts.map((p, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge
+                            variant="outline"
+                            className={
+                              p.stock <= 0
+                                ? "text-red-600 border-red-300"
+                                : "text-amber-600 border-amber-300"
+                            }
+                          >
+                            {p.stock}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { Plus, Star, Trash2 } from 'lucide-react';
 import { Button } from '~/ui/primitives/button';
+import { MAX_MATERIAL_IMAGES } from '~/lib/material-images';
 
 // Schema de validação do material (obrigatórios + invalidações)
 const materialSchema = z.object({
@@ -30,11 +31,14 @@ const materialSchema = z.object({
     .gt(0, 'Seleciona uma categoria'),
   images: z
     .array(z.object({ url: z.string().trim().url('URL de imagem inválida'), isDefault: z.boolean() }))
-    .max(3, 'Máximo de 3 imagens')
+    .max(MAX_MATERIAL_IMAGES, `Máximo de ${MAX_MATERIAL_IMAGES} imagens`)
     .optional(),
 });
 
 type FieldErrors = Partial<Record<keyof z.infer<typeof materialSchema>, string>>;
+
+// Asterisco de campo obrigatório.
+const Req = () => <span className="ml-0.5 text-red-500">*</span>;
 
 interface Subcategory {
   id: number;
@@ -199,7 +203,9 @@ export default function MaterialFormPage() {
   };
 
   const addImage = () => {
-    setImages((prev) => (prev.length >= 3 ? prev : [...prev, { url: '', isDefault: false }]));
+    setImages((prev) =>
+      prev.length >= MAX_MATERIAL_IMAGES ? prev : [...prev, { url: '', isDefault: false }],
+    );
   };
 
   const removeImage = (idx: number) => {
@@ -305,6 +311,7 @@ export default function MaterialFormPage() {
         <div>
           <label className="block text-sm font-medium text-gray-900 dark:text-white">
             Nome
+            <Req />
           </label>
           <input
             type="text"
@@ -342,6 +349,7 @@ export default function MaterialFormPage() {
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-white">
               Preço (€)
+              <Req />
             </label>
             <input
               type="number"
@@ -366,6 +374,7 @@ export default function MaterialFormPage() {
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-white">
               Stock
+              <Req />
             </label>
             <input
               type="number"
@@ -391,6 +400,7 @@ export default function MaterialFormPage() {
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-white">
               Categoria Principal
+              <Req />
             </label>
             <select
               value={mainCategoryId || 0}
@@ -487,10 +497,10 @@ export default function MaterialFormPage() {
             <label className="block text-sm font-medium text-gray-900 dark:text-white">
               Imagens do Produto
               <span className="ml-1 text-xs font-normal text-gray-400">
-                (1 a 3 — marca a imagem por defeito)
+                (até {MAX_MATERIAL_IMAGES} — marca a imagem por defeito)
               </span>
             </label>
-            {images.length < 3 && (
+            {images.length < MAX_MATERIAL_IMAGES && (
               <Button type="button" variant="outline" size="sm" onClick={addImage} className="gap-1">
                 <Plus className="h-4 w-4" />
                 Adicionar
@@ -566,6 +576,9 @@ export default function MaterialFormPage() {
         </div>
 
         {/* Botões */}
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-red-500">*</span> Campos obrigatórios
+        </p>
         <div className="flex gap-3">
           <Button type="submit" disabled={submitting}>
             {submitting ? 'A guardar...' : 'Guardar'}

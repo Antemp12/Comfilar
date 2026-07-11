@@ -48,7 +48,7 @@ export default function RegisterPage() {
   // Depois do sucesso, redireciona automaticamente ao fim de alguns segundos.
   useEffect(() => {
     if (!showSuccess) return;
-    const t = setTimeout(() => router.push('/dashboard'), 3500);
+    const t = setTimeout(() => router.push('/dashboard/home'), 3500);
     return () => clearTimeout(t);
   }, [showSuccess, router]);
 
@@ -196,7 +196,7 @@ export default function RegisterPage() {
               criada e já tens sessão iniciada.
             </DialogDescription>
           </DialogHeader>
-          <Button className="w-full" onClick={() => router.push('/dashboard')}>
+          <Button className="w-full" onClick={() => router.push('/dashboard/home')}>
             Ir para o painel
           </Button>
           <p className="text-center text-xs text-gray-400">

@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const categoryId = searchParams.get("categoryId")
-      ? parseInt(searchParams.get("categoryId")!, 10)
-      : undefined;
+    // Aceita `categoryId` único ou vários (separados por vírgula, ex: categoryId=1,2,3).
+    const categoryIdRaw = searchParams.get("categoryId");
+    const categoryIds = categoryIdRaw
+      ? categoryIdRaw
+          .split(",")
+          .map((v) => parseInt(v.trim(), 10))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+    const categoryId = categoryIds.length === 1 ? categoryIds[0] : undefined;
     const search = searchParams.get("search") || undefined;
     const minPrice = searchParams.get("minPrice")
       ? parseFloat(searchParams.get("minPrice")!)
@@ -70,6 +76,7 @@ export async function GET(request: NextRequest) {
 
     const filters: MaterialFilterOptions = {
       categoryId,
+      categoryIds: categoryIds.length > 1 ? categoryIds : undefined,
       search,
       minPrice,
       maxPrice,

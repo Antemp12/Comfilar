@@ -55,7 +55,7 @@ export const comfilarConfig = {
       { label: "Contacto", href: "/contact" },
     ],
     private: [
-      { label: "Dashboard", href: "/dashboard" },
+      { label: "Dashboard", href: "/dashboard/home" },
       { label: "Meus Pedidos", href: "/dashboard/orders" },
       { label: "Perfil", href: "/dashboard/profile" },
       { label: "Reuniões", href: "/dashboard/meetings" },
@@ -64,7 +64,6 @@ export const comfilarConfig = {
       { label: "Materiais", href: "/admin/materials" },
       { label: "Categorias", href: "/admin/categories" },
       { label: "Utilizadores", href: "/admin/users" },
-      { label: "Pedidos", href: "/admin/quotes" },
       { label: "Encomendas", href: "/admin/orders" },
     ],
   },

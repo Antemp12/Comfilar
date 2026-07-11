@@ -22,12 +22,14 @@ export async function POST(request: NextRequest) {
       parentCategoryId?: unknown;
       image?: unknown;
       isFeatured?: unknown;
+      isActive?: unknown;
     };
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const parentCategoryId =
       body.parentCategoryId != null ? Number(body.parentCategoryId) : null;
     const image = typeof body.image === "string" && body.image.trim() ? body.image.trim() : null;
     const isFeatured = Boolean(body.isFeatured);
+    const isActive = body.isActive === undefined ? true : Boolean(body.isActive);
 
     if (!name) {
       return NextResponse.json(
@@ -85,6 +87,7 @@ export async function POST(request: NextRequest) {
       parentCategoryId,
       image,
       isFeatured,
+      isActive,
     });
 
     return NextResponse.json(

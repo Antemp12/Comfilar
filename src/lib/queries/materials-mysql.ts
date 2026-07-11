@@ -8,7 +8,7 @@ import {
   materialVariantsTable,
   priceTypesTable,
 } from "@/db/schema";
-import { eq, asc, desc, like, and, gte, lte, count, type SQL } from "drizzle-orm";
+import { eq, asc, desc, like, and, gte, lte, count, inArray, type SQL } from "drizzle-orm";
 import { normalizeMaterialImages, type MaterialImageInput } from "~/lib/material-images";
 
 // ============================================
@@ -20,6 +20,8 @@ export type SortOrder = "asc" | "desc";
 
 export interface MaterialFilterOptions {
   categoryId?: number;
+  /** Filtrar por várias categorias em simultâneo (OR). */
+  categoryIds?: number[];
   search?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -32,12 +34,15 @@ export interface MaterialFilterOptions {
  * garantindo que ambas usam exatamente os mesmos filtros.
  */
 function buildMaterialConditions(options: MaterialFilterOptions = {}): SQL[] {
-  const { categoryId, search, minPrice, maxPrice, featuredOnly, inStockOnly } =
+  const { categoryId, categoryIds, search, minPrice, maxPrice, featuredOnly, inStockOnly } =
     options;
 
   const conditions: SQL[] = [eq(materialsTable.isDeleted, false)];
 
-  if (categoryId) {
+  // Filtro por várias categorias tem prioridade; senão usa a única (compatibilidade).
+  if (categoryIds && categoryIds.length > 0) {
+    conditions.push(inArray(materialsTable.categoryId, categoryIds));
+  } else if (categoryId) {
     conditions.push(eq(materialsTable.categoryId, categoryId));
   }
   if (search) {

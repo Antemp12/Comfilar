@@ -9,6 +9,15 @@ import { Calendar as CalendarIcon, Clock, AlertCircle, CheckCircle, XCircle } fr
 
 import { RoleGuard } from "~/lib/role-guard";
 import { useAuth } from "~/lib/auth-context";
+import {
+  MEETING_AVAILABILITY_KEY,
+  MEETING_SLOT_MINUTES,
+  DEFAULT_AVAILABILITY,
+  parseAvailability,
+  generateSlots,
+  addMinutesToTime,
+  type MeetingAvailability,
+} from "~/lib/meeting-availability";
 import { Calendar } from "~/ui/primitives/calendar";
 import { Button } from "~/ui/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
@@ -29,11 +38,14 @@ type MeetingRequest = {
 export default function MeetingsPage() {
   const { user } = useAuth();
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [startTime, setStartTime] = useState("");
   const [subject, setSubject] = useState("");
   const [requests, setRequests] = useState<MeetingRequest[]>([]);
+  const [availability, setAvailability] = useState<MeetingAvailability>(DEFAULT_AVAILABILITY);
+
+  // Hora de fim = início + duração fixa da reunião.
+  const endTime = startTime ? addMinutesToTime(startTime, MEETING_SLOT_MINUTES) : "";
 
   // Dias com reuniões aprovadas
   const bookedDates = useMemo(() => {
@@ -49,17 +61,20 @@ export default function MeetingsPage() {
       });
   }, [requests]);
 
-  const timeSlots = useMemo(() => {
-    const slots: string[] = [];
-    for (let h = 9; h <= 18; h++) {
-      for (const m of [0, 30]) {
-        const hh = String(h).padStart(2, "0");
-        const mm = String(m).padStart(2, "0");
-        slots.push(`${hh}:${mm}`);
-      }
+  // Slots de início possíveis, gerados a partir da disponibilidade definida pelo admin.
+  const timeSlots = useMemo(
+    () => generateSlots(availability.startTime, availability.endTime, MEETING_SLOT_MINUTES),
+    [availability],
+  );
+
+  // Garante que o slot escolhido é válido (ou escolhe o primeiro disponível).
+  useEffect(() => {
+    if (timeSlots.length === 0) {
+      setStartTime("");
+    } else if (!timeSlots.includes(startTime)) {
+      setStartTime(timeSlots[0]);
     }
-    return slots;
-  }, []);
+  }, [timeSlots, startTime]);
 
   const fetchRequests = async () => {
     const res = await fetch("/api/meetings/requests", { credentials: "include" });
@@ -69,8 +84,21 @@ export default function MeetingsPage() {
     }
   };
 
+  const fetchAvailability = async () => {
+    try {
+      const res = await fetch(`/api/admin/settings?key=${MEETING_AVAILABILITY_KEY}`);
+      if (res.ok) {
+        const json = (await res.json()) as { data?: { value?: string } | null };
+        setAvailability(parseAvailability(json.data?.value));
+      }
+    } catch {
+      /* usa o valor por defeito */
+    }
+  };
+
   useEffect(() => {
     void fetchRequests();
+    void fetchAvailability();
   }, []);
 
   const handleRequest = async (e: React.FormEvent) => {
@@ -79,7 +107,19 @@ export default function MeetingsPage() {
       toast.error("Selecione uma data");
       return;
     }
-    
+
+    // Validar: o dia da semana tem de estar disponível
+    if (!availability.weekdays.includes(selectedDate.getDay())) {
+      toast.error("Esse dia não está disponível para reuniões");
+      return;
+    }
+
+    // Validar: tem de haver um horário selecionado
+    if (!startTime) {
+      toast.error("Selecione um horário");
+      return;
+    }
+
     // Validar: assunto obrigatório
     if (!subject || subject.trim().length === 0) {
       toast.error("O assunto da reunião é obrigatório");
@@ -103,11 +143,6 @@ export default function MeetingsPage() {
       return;
     }
     
-    // Validate start < end
-    if (startTime >= endTime) {
-      toast.error("Horário inválido: fim deve ser após início");
-      return;
-    }
     const body = {
       date: selectedDate.toISOString(),
       start: startTime,
@@ -165,10 +200,11 @@ export default function MeetingsPage() {
   locale={pt}
   weekStartsOn={1}
   disabled={(date) => {
-    // Desabilitar datas passadas
+    // Desabilitar datas passadas e dias da semana não disponíveis
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (date < today) return true;
+    return !availability.weekdays.includes(date.getDay());
   }}
   modifiers={{
     booked: (date) => bookedDates.includes(date.toDateString()),
@@ -195,9 +231,15 @@ export default function MeetingsPage() {
                       />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="grid gap-2">
-                        <Label className="text-sm font-semibold text-slate-700">Horário Inicial</Label>
+                    <div className="grid gap-2">
+                      <Label className="text-sm font-semibold text-slate-700">
+                        Horário ({MEETING_SLOT_MINUTES} min)
+                      </Label>
+                      {timeSlots.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                          Sem horários disponíveis. Escolha outro dia.
+                        </p>
+                      ) : (
                         <select
                           className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                           value={startTime}
@@ -205,25 +247,11 @@ export default function MeetingsPage() {
                         >
                           {timeSlots.map((t) => (
                             <option key={t} value={t}>
-                              {t}
+                              {t} — {addMinutesToTime(t, MEETING_SLOT_MINUTES)}
                             </option>
                           ))}
                         </select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label className="text-sm font-semibold text-slate-700">Horário Final</Label>
-                        <select
-                          className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
-                          value={endTime}
-                          onChange={(e) => setEndTime(e.target.value)}
-                        >
-                          {timeSlots.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      )}
                     </div>
 
                     <div className="grid gap-2">
