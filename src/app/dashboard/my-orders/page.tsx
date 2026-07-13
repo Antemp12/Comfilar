@@ -64,7 +64,7 @@ export default function MyOrdersPage() {
     try {
       const res = await fetch("/api/customer/orders");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { data?: Order[] };
         setOrders(data.data || []);
       } else if (res.status === 401) {
         toast.error("Por favor, faça login para ver suas encomendas");

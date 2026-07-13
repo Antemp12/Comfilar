@@ -13,6 +13,7 @@ import {
   MEETING_AVAILABILITY_KEY,
   MEETING_SLOT_MINUTES,
   DEFAULT_AVAILABILITY,
+  WEEKDAY_LABELS_LONG,
   parseAvailability,
   generateSlots,
   addMinutesToTime,
@@ -143,8 +144,13 @@ export default function MeetingsPage() {
       return;
     }
     
+    // Enviar a data como YYYY-MM-DD local (sem toISOString, que trocava o dia por
+    // causa do fuso horário — ex.: meia-noite local vira o dia anterior em UTC).
+    const y = selectedDate.getFullYear();
+    const mo = String(selectedDate.getMonth() + 1).padStart(2, "0");
+    const da = String(selectedDate.getDate()).padStart(2, "0");
     const body = {
-      date: selectedDate.toISOString(),
+      date: `${y}-${mo}-${da}`,
       start: startTime,
       end: endTime,
       subject,
@@ -191,6 +197,27 @@ export default function MeetingsPage() {
                   <p className="text-sm text-slate-600 mt-1 font-normal">Escolha uma data, horário e descreva o assunto</p>
                 </CardHeader>
                 <CardContent className="pt-6 grid gap-6 md:grid-cols-2">
+                  {/* Disponibilidade definida pela equipa */}
+                  <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                    <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      {availability.weekdays.length > 0 ? (
+                        <>
+                          <span className="font-semibold">Horário disponível:</span>{" "}
+                          {[...availability.weekdays]
+                            .sort((a, b) => a - b)
+                            .map((d) => WEEKDAY_LABELS_LONG[d])
+                            .join(", ")}{" "}
+                          das <strong>{availability.startTime}</strong> às{" "}
+                          <strong>{availability.endTime}</strong> · reuniões de{" "}
+                          {MEETING_SLOT_MINUTES} min. Só é possível marcar dentro deste horário.
+                        </>
+                      ) : (
+                        <span>De momento não há disponibilidade para reuniões.</span>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex justify-center">
                     <div className="calendar-wrapper rounded-lg border border-slate-300 bg-white p-4 shadow-md">
  <Calendar

@@ -1,4 +1,5 @@
 import {
+  date,
   decimal,
   int,
   mysqlEnum,
@@ -43,6 +44,8 @@ export const categoryAttributesTable = mysqlTable("category_attributes", {
     .references(() => categoriesTable.id, { onDelete: "cascade" }),
   attributeName: varchar("attribute_name", { length: 100 }).notNull(),
   attributeValues: json("attribute_values").$type<string[]>().notNull(),
+  // "select" = lista de valores; "number" = valor numérico (filtro por intervalo)
+  type: varchar("type", { length: 20 }).notNull().default("select"),
 });
 
 // ============================================
@@ -177,6 +180,8 @@ export const ordersTable = mysqlTable("encomenda", {
     .notNull()
     .default("processamento"),
   confirmationDate: timestamp("data_confirm").notNull().defaultNow(),
+  // Data prevista de entrega (definida pelo admin), "YYYY-MM-DD".
+  estimatedDelivery: date("data_prevista", { mode: "string" }),
 });
 
 // ============================================

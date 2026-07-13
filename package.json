@@ -52,6 +52,7 @@
     "nuqs": "^2.4.3",
     "ofetch": "^1.4.1",
     "pathe": "^2.0.3",
+    "pdfjs-dist": "^6.1.200",
     "react": "^19.1.0",
     "react-day-picker": "9.6.7",
     "react-dom": "^19.1.0",

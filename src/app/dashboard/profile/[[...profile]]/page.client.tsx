@@ -1,257 +1,226 @@
 "use client";
 
-import { Shield, User } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { KeyRound, Loader2, Shield, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
-import { twoFactor } from "~/lib/auth-client";
 import { useAuth } from "~/lib/auth-context";
 import { RoleGuard } from "~/lib/role-guard";
+import { Badge } from "~/ui/primitives/badge";
 import { Button } from "~/ui/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
 import { Input } from "~/ui/primitives/input";
 import { Label } from "~/ui/primitives/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/ui/primitives/tabs";
 
-export function ProfilePageClient() {
-  const { user } = useAuth();
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showQrCode, setShowQrCode] = useState(false);
-  const [qrCodeData, setQrCodeData] = useState("");
-  const [secret, setSecret] = useState("");
+const roleLabels: Record<string, string> = {
+  cliente: "Cliente",
+  funcionario: "Funcionário",
+  admin: "Administrador",
+};
 
-  const handleEnableTwoFactor = () => {
-    if (!password) {
-      setError("Password is required");
+function initials(name?: string) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return (parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "");
+}
+
+export function ProfilePageClient() {
+  const { user, token, refreshUser } = useAuth();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setEmail(user.email);
+    }
+  }, [user?.id]);
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  });
+
+  const handleSaveProfile = async () => {
+    if (name.trim().length < 2) {
+      toast.error("O nome deve ter pelo menos 2 caracteres");
       return;
     }
-
-    setError("");
-    setLoading(true);
-
-    twoFactor
-      .enable({
-        password,
-      })
-      .then((result) => {
-        if ("data" in result && result.data) {
-          const uri = result.data.totpURI;
-          setQrCodeData(uri);
-
-          if (typeof uri === "string" && uri.includes("secret=")) {
-            const secretMatch = uri.split("secret=")[1];
-            if (secretMatch) {
-              const extractedSecret = secretMatch.split("&")[0];
-              if (extractedSecret) {
-                setSecret(extractedSecret);
-              }
-            }
-          }
-
-          setShowQrCode(true);
-          setMessage("Scan the QR code with your authenticator app");
-        } else {
-          setError(
-            "Failed to enable two-factor authentication. Unexpected response format.",
-          );
-        }
-      })
-      .catch((err: unknown) => {
-        setError(
-          "Failed to enable two-factor authentication. Please try again.",
-        );
-        console.error(err);
-      })
-      .finally(() => {
-        setLoading(false);
+    setSavingProfile(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: authHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
       });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new Error(data?.message || "Erro ao guardar");
+      await refreshUser();
+      toast.success("Perfil atualizado");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao guardar");
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
-  const handleDisableTwoFactor = () => {
-    if (!password) {
-      setError("Password is required");
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword) {
+      toast.error("Preenche a palavra-passe atual e a nova");
       return;
     }
-
-    setError("");
-    setLoading(true);
-
-    twoFactor
-      .disable({
-        password,
-      })
-      .then(() => {
-        setMessage("Two-factor authentication has been disabled");
-        setShowQrCode(false);
-      })
-      .catch((err: unknown) => {
-        setError(
-          "Failed to disable two-factor authentication. Please try again.",
-        );
-        console.error(err);
-      })
-      .finally(() => {
-        setLoading(false);
+    if (newPassword.length < 6) {
+      toast.error("A nova palavra-passe deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("A confirmação não coincide");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: authHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new Error(data?.message || "Erro ao alterar palavra-passe");
+      toast.success("Palavra-passe alterada");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao alterar palavra-passe");
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
-    <RoleGuard allowedRoles={['cliente']}>
-    <div
-      className={`
-        container space-y-6 p-4
-        md:p-8
-      `}
-    >
-      <div className="space-y-0.5">
-        <h2 className="text-2xl font-bold tracking-tight">Profile</h2>
-        <p className="text-muted-foreground">
-          Manage your profile and security settings.
-        </p>
-      </div>
+    <RoleGuard allowedRoles={["cliente"]}>
+      <div className="container mx-auto max-w-3xl space-y-6 p-4 md:p-8">
+        {/* Cabeçalho do perfil */}
+        <div className="flex items-center gap-4 rounded-2xl border bg-gradient-to-r from-primary/10 to-transparent p-6">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold uppercase text-primary-foreground">
+            {initials(user?.name)}
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold">{user?.name ?? "—"}</h1>
+            <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
+            <Badge variant="secondary" className="mt-1">
+              {roleLabels[user?.type ?? ""] ?? user?.type}
+            </Badge>
+          </div>
+        </div>
 
-      <Tabs className="space-y-4" defaultValue="general">
-        <TabsList>
-          <TabsTrigger className="flex items-center gap-2" value="general">
-            <User className="h-4 w-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger className="flex items-center gap-2" value="security">
-            <Shield className="h-4 w-4" />
-            Security
-          </TabsTrigger>
-        </TabsList>
+        <Tabs className="space-y-4" defaultValue="general">
+          <TabsList>
+            <TabsTrigger className="flex items-center gap-2" value="general">
+              <User className="h-4 w-4" />
+              Geral
+            </TabsTrigger>
+            <TabsTrigger className="flex items-center gap-2" value="security">
+              <Shield className="h-4 w-4" />
+              Segurança
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent className="space-y-4" value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  defaultValue={user?.name || ""}
-                  id="name"
-                  placeholder="Enter your name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  defaultValue={user?.email || ""}
-                  id="email"
-                  placeholder="Enter your email"
-                  type="email"
-                />
-              </div>
-              <Button>Save Changes</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent className="space-y-4" value="security">
-          {error && (
-            <div
-              className={`
-                rounded-md bg-destructive/10 p-4 text-sm text-destructive
-              `}
-            >
-              {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="rounded-md bg-green-50 p-4 text-sm text-green-700">
-              {message}
-            </div>
-          )}
-
-          {showQrCode && qrCodeData && (
+          {/* Geral */}
+          <TabsContent className="space-y-4" value="general">
             <Card>
               <CardHeader>
-                <CardTitle>Scan QR Code</CardTitle>
+                <CardTitle>Dados pessoais</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex flex-col items-center">
-                  <img
-                    alt="QR Code for Two-Factor Authentication"
-                    className="h-48 w-48"
-                    src={qrCodeData}
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="O seu nome"
                   />
-                  <p className="mt-4 text-center text-sm text-muted-foreground">
-                    Scan this QR code with your authenticator app (Google
-                    Authenticator, Authy, etc.)
-                  </p>
-                  {secret && (
-                    <div className="mt-6 w-full">
-                      <p className="text-sm font-medium">Manual entry code:</p>
-                      <p
-                        className={`
-                          mt-2 rounded-md bg-muted p-4 font-mono text-sm
-                          break-all
-                        `}
-                      >
-                        {secret}
-                      </p>
-                    </div>
-                  )}
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="o.seu@email.com"
+                  />
+                </div>
+                <Button onClick={handleSaveProfile} disabled={savingProfile}>
+                  {savingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Guardar alterações
+                </Button>
               </CardContent>
             </Card>
-          )}
+          </TabsContent>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Two-Factor Authentication</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="password">Your Password</Label>
-                <Input
-                  id="password"
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  type="password"
-                  value={password}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Required to change your two-factor authentication settings
-                </p>
-              </div>
-
-              <div className="flex space-x-4">
-                <Button disabled={loading} onClick={handleEnableTwoFactor}>
-                  {loading ? "Processing..." : "Enable Two-Factor"}
+          {/* Segurança */}
+          <TabsContent className="space-y-4" value="security">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  Alterar palavra-passe
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="currentPassword">Palavra-passe atual</Label>
+                  <Input
+                    id="currentPassword"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="newPassword">Nova palavra-passe</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="confirmPassword">Confirmar nova</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a nova palavra-passe"
+                    />
+                  </div>
+                </div>
+                <Button onClick={handleChangePassword} disabled={savingPassword}>
+                  {savingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Alterar palavra-passe
                 </Button>
-
-                <Button
-                  disabled={loading}
-                  onClick={handleDisableTwoFactor}
-                  variant="destructive"
-                >
-                  {loading ? "Processing..." : "Disable Two-Factor"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Backup Codes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href="/auth/mfa">manage backup codes</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  </RoleGuard>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </RoleGuard>
   );
 }

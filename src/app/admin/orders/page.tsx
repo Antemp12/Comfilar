@@ -65,6 +65,27 @@ export default function OrdersPage() {
   const [orderItems, setOrderItems] = useState<OrderItemView[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [estimatedDelivery, setEstimatedDelivery] = useState("");
+  const [savingDelivery, setSavingDelivery] = useState(false);
+
+  const saveDelivery = async () => {
+    if (!selectedOrder) return;
+    setSavingDelivery(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ estimatedDelivery: estimatedDelivery || null }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Data prevista guardada");
+    } catch {
+      toast.error("Erro ao guardar a data prevista");
+    } finally {
+      setSavingDelivery(false);
+    }
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -110,13 +131,17 @@ export default function OrdersPage() {
     setSelectedOrder(order);
     setNewStatus(order.status);
     setOrderItems([]);
+    setEstimatedDelivery("");
     setShowDetailDialog(true);
     setLoadingItems(true);
     try {
-      const res = await fetch(`/api/orders/${order.id}`);
-      const data = (await res.json()) as { data?: { items?: OrderItemView[] } };
+      const res = await fetch(`/api/admin/orders/${order.id}`, { credentials: "include" });
+      const data = (await res.json()) as {
+        data?: { items?: OrderItemView[]; estimatedDelivery?: string | null };
+      };
       if (res.ok) {
         setOrderItems(data.data?.items ?? []);
+        setEstimatedDelivery(data.data?.estimatedDelivery ?? "");
       } else {
         toast.error("Erro ao carregar itens da encomenda");
       }
@@ -485,6 +510,28 @@ export default function OrdersPage() {
               </div>
               <p className="mt-1 text-xs text-gray-500">
                 O cliente é notificado automaticamente quando o estado muda.
+              </p>
+            </div>
+
+            {/* Data prevista de entrega */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
+                Data prevista de entrega
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="date"
+                  value={estimatedDelivery}
+                  onChange={(e) => setEstimatedDelivery(e.target.value)}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                />
+                <Button variant="outline" onClick={saveDelivery} disabled={savingDelivery}>
+                  {savingDelivery && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Guardar data
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Fica visível para o cliente nas "Minhas Encomendas".
               </p>
             </div>
 

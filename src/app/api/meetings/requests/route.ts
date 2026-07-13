@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "~/db";
-import { meetingRequestsTable } from "~/db/schema";
+import { meetingRequestsTable, siteSettingsTable } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getTokenFromHeader, validateToken } from "~/lib/auth-comfilar";
 import { notifyAdminNewMeeting } from "~/lib/notifications-service";
+import {
+  MEETING_AVAILABILITY_KEY,
+  MEETING_SLOT_MINUTES,
+  parseAvailability,
+  generateSlots,
+} from "~/lib/meeting-availability";
 
 /**
  * GET /api/meetings/requests
@@ -54,6 +60,34 @@ export async function POST(req: NextRequest) {
     }
     if (start >= end) {
       return NextResponse.json({ success: false, message: "Fim deve ser após início" }, { status: 400 });
+    }
+
+    // Reforço no servidor: só permitir dentro da disponibilidade definida pelo admin.
+    const [setting] = await db
+      .select({ value: siteSettingsTable.value })
+      .from(siteSettingsTable)
+      .where(eq(siteSettingsTable.key, MEETING_AVAILABILITY_KEY))
+      .limit(1);
+    const availability = parseAvailability(setting?.value);
+
+    // Dia da semana (a partir da parte da data, ao meio-dia UTC para evitar fusos).
+    const datePart = String(date).slice(0, 10);
+    const [dy, dm, dd] = datePart.split("-").map(Number);
+    const weekday = new Date(Date.UTC(dy, (dm || 1) - 1, dd || 1, 12)).getUTCDay();
+    if (!availability.weekdays.includes(weekday)) {
+      return NextResponse.json(
+        { success: false, message: "Esse dia não está disponível para reuniões" },
+        { status: 400 },
+      );
+    }
+
+    // O horário tem de ser um dos slots gerados a partir da disponibilidade.
+    const slots = generateSlots(availability.startTime, availability.endTime, MEETING_SLOT_MINUTES);
+    if (!slots.includes(start)) {
+      return NextResponse.json(
+        { success: false, message: "Esse horário não está disponível" },
+        { status: 400 },
+      );
     }
 
     // Se a data já vem em formato ISO, usar diretamente

@@ -28,8 +28,14 @@ export async function PUT(
       imageUrl?: string;
       description?: string;
       order?: number;
+      type?: string;
+      pages?: string[];
+      pdfUrl?: string;
     };
 
+    const cleanPages = Array.isArray(body.pages)
+      ? body.pages.map((p) => String(p).trim()).filter(Boolean)
+      : undefined;
 
     await db
       .update(catalogsTable)
@@ -38,6 +44,11 @@ export async function PUT(
         imageUrl: body.imageUrl,
         description: body.description,
         order: body.order,
+        ...(body.type ? { type: body.type === "pricelist" ? "pricelist" : "carousel" } : {}),
+        ...(cleanPages ? { pages: cleanPages } : {}),
+        ...(body.pdfUrl !== undefined
+          ? { pdfUrl: body.pdfUrl.trim() ? body.pdfUrl.trim() : null }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(catalogsTable.id, id));

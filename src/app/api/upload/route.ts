@@ -6,13 +6,15 @@ import { validateAdminToken } from "@/lib/auth-api";
 
 export const runtime = "nodejs";
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_PDF_BYTES = 30 * 1024 * 1024; // 30 MB
 const ALLOWED: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
   "image/svg+xml": "svg",
+  "application/pdf": "pdf",
 };
 
 /**
@@ -41,14 +43,20 @@ export async function POST(request: NextRequest) {
     const ext = ALLOWED[file.type];
     if (!ext) {
       return NextResponse.json(
-        { error: "Tipo de ficheiro não suportado. Usa JPG, PNG, WEBP, GIF ou SVG." },
+        { error: "Tipo de ficheiro não suportado. Usa JPG, PNG, WEBP, GIF, SVG ou PDF." },
         { status: 400 },
       );
     }
 
-    if (file.size > MAX_BYTES) {
+    const maxBytes = ext === "pdf" ? MAX_PDF_BYTES : MAX_IMAGE_BYTES;
+    if (file.size > maxBytes) {
       return NextResponse.json(
-        { error: "A imagem é demasiado grande (máx. 5 MB)." },
+        {
+          error:
+            ext === "pdf"
+              ? "O PDF é demasiado grande (máx. 30 MB)."
+              : "A imagem é demasiado grande (máx. 5 MB).",
+        },
         { status: 400 },
       );
     }

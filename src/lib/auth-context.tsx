@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User | undefined>;
   register: (name: string, email: string, password: string, type: string) => Promise<User | undefined>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -200,6 +201,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Recarrega os dados do utilizador a partir do servidor (ex.: após editar o perfil).
+  const refreshUser = async () => {
+    const storedToken = token || localStorage.getItem('authToken');
+    if (!storedToken) return;
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${storedToken}` },
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { user?: User };
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem('authUser', JSON.stringify(data.user));
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar utilizador:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -207,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!user && !!token,
   };
 

@@ -2,9 +2,12 @@ import { db } from "~/db";
 import { categoryAttributesTable, categoriesTable } from "~/db/schema";
 import { eq } from "drizzle-orm";
 
+export type CategoryAttributeType = "select" | "number";
+
 export interface CategoryAttributeInput {
   name: string;
   values: string[];
+  type?: CategoryAttributeType;
 }
 
 /** Garante que os valores vêm como string[] (podem estar guardados como texto JSON). */
@@ -54,7 +57,7 @@ export async function getCategoryAttributes(categoryId: number) {
  */
 export async function getResolvedCategoryAttributes(
   categoryId: number,
-): Promise<Array<{ id: number; name: string; values: string[] }>> {
+): Promise<Array<{ id: number; name: string; values: string[]; type: string }>> {
   const own = await getCategoryAttributes(categoryId);
 
   // Descobrir a categoria-mãe (se for subcategoria).
@@ -73,12 +76,13 @@ export async function getResolvedCategoryAttributes(
   const inherited = parentId ? await getCategoryAttributes(parentId) : [];
 
   // Merge por nome (case-insensitive): próprios sobrepõem-se aos herdados.
-  const byName = new Map<string, { id: number; name: string; values: string[] }>();
+  const byName = new Map<string, { id: number; name: string; values: string[]; type: string }>();
   for (const a of inherited) {
     byName.set(a.attributeName.toLowerCase(), {
       id: a.id,
       name: a.attributeName,
       values: toValues(a.attributeValues),
+      type: (a as { type?: string }).type ?? "select",
     });
   }
   for (const a of own) {
@@ -86,6 +90,7 @@ export async function getResolvedCategoryAttributes(
       id: a.id,
       name: a.attributeName,
       values: toValues(a.attributeValues),
+      type: (a as { type?: string }).type ?? "select",
     });
   }
 
@@ -103,11 +108,13 @@ export async function setCategoryAttributes(
   const rows = attrs
     .map((a) => ({
       name: (a.name ?? "").trim(),
+      type: a.type === "number" ? "number" : "select",
       values: Array.from(
         new Set((a.values ?? []).map((v) => v.trim()).filter(Boolean)),
       ),
     }))
-    .filter((a) => a.name && a.values.length > 0);
+    // Filtros de lista precisam de valores; filtros numéricos não.
+    .filter((a) => a.name && (a.type === "number" || a.values.length > 0));
 
   await db
     .delete(categoryAttributesTable)
@@ -120,6 +127,7 @@ export async function setCategoryAttributes(
       categoryId,
       attributeName: a.name,
       attributeValues: a.values,
+      type: a.type,
     })),
   );
 }

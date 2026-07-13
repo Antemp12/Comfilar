@@ -17,8 +17,10 @@ export function CatalogsCarousel() {
         const json = (await response.json()) as { success?: boolean; data?: Catalog[] };
         console.log('📊 Resposta de catálogos:', json);
         if (json.success && json.data && json.data.length > 0) {
-          console.log('✅ Catálogos carregados:', json.data.length);
-          setCatalogs(json.data);
+          // O carrossel do início só mostra catálogos do tipo "carrossel"
+          // (as tabelas de preço ficam na página de Promoções, para folhear).
+          const carousel = json.data.filter((c) => c.type !== 'pricelist');
+          setCatalogs(carousel);
         } else {
           console.warn('⚠️ Nenhum catálogo encontrado');
         }

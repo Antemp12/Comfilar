@@ -19,8 +19,11 @@ import {
   MEETING_AVAILABILITY_KEY,
   MEETING_SLOT_MINUTES,
   WEEKDAY_LABELS,
+  WEEKDAY_LABELS_LONG,
   DEFAULT_AVAILABILITY,
   parseAvailability,
+  generateSlots,
+  addMinutesToTime,
   type MeetingAvailability,
 } from "~/lib/meeting-availability";
 import {
@@ -202,6 +205,19 @@ export default function MeetingsPage() {
         return;
       }
 
+      // Restrição: dentro da disponibilidade definida (dia + slot de 30 min).
+      const [y, m, d] = createDialog.date.split("-").map(Number);
+      const weekday = new Date(Date.UTC(y, (m || 1) - 1, d || 1, 12)).getUTCDay();
+      if (!availability.weekdays.includes(weekday)) {
+        toast.error("Esse dia não está disponível para reuniões");
+        return;
+      }
+      const slots = generateSlots(availability.startTime, availability.endTime, MEETING_SLOT_MINUTES);
+      if (!slots.includes(createDialog.startTime)) {
+        toast.error("Esse horário não está disponível");
+        return;
+      }
+
       const res = await fetch("/api/admin/meetings/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -209,7 +225,7 @@ export default function MeetingsPage() {
           userId: parseInt(createDialog.userId),
           date: createDialog.date,
           startTime: createDialog.startTime,
-          endTime: createDialog.endTime || createDialog.startTime,
+          endTime: addMinutesToTime(createDialog.startTime, MEETING_SLOT_MINUTES),
           subject: createDialog.subject,
         }),
       });
@@ -831,6 +847,21 @@ export default function MeetingsPage() {
                 </div>
               )}
             </div>
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-900">
+              {availability.weekdays.length > 0 ? (
+                <>
+                  Disponível:{" "}
+                  {[...availability.weekdays]
+                    .sort((a, b) => a - b)
+                    .map((day) => WEEKDAY_LABELS_LONG[day])
+                    .join(", ")}{" "}
+                  · {availability.startTime}–{availability.endTime} · reuniões de{" "}
+                  {MEETING_SLOT_MINUTES} min
+                </>
+              ) : (
+                <>Sem disponibilidade definida (define-a no painel acima).</>
+              )}
+            </div>
             <div>
               <label className="text-sm font-medium">Data *</label>
               <Input
@@ -839,23 +870,31 @@ export default function MeetingsPage() {
                 onChange={(e) => setCreateDialog({ ...createDialog, date: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-sm font-medium">Hora Início *</label>
-                <Input
-                  type="time"
-                  value={createDialog.startTime}
-                  onChange={(e) => setCreateDialog({ ...createDialog, startTime: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Hora Fim</label>
-                <Input
-                  type="time"
-                  value={createDialog.endTime}
-                  onChange={(e) => setCreateDialog({ ...createDialog, endTime: e.target.value })}
-                />
-              </div>
+            <div>
+              <label className="text-sm font-medium">Horário ({MEETING_SLOT_MINUTES} min) *</label>
+              {(() => {
+                const slots = generateSlots(
+                  availability.startTime,
+                  availability.endTime,
+                  MEETING_SLOT_MINUTES,
+                );
+                return slots.length === 0 ? (
+                  <p className="text-sm text-gray-500">Sem horários disponíveis.</p>
+                ) : (
+                  <select
+                    value={createDialog.startTime}
+                    onChange={(e) => setCreateDialog({ ...createDialog, startTime: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">— Selecionar —</option>
+                    {slots.map((t) => (
+                      <option key={t} value={t}>
+                        {t} — {addMinutesToTime(t, MEETING_SLOT_MINUTES)}
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
             </div>
             <div>
               <label className="text-sm font-medium">Assunto</label>

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         quoteId: ordersTable.quoteId,
         status: ordersTable.status,
         confirmationDate: ordersTable.confirmationDate,
+        estimatedDelivery: ordersTable.estimatedDelivery,
       })
       .from(ordersTable)
       .where(eq(ordersTable.userId, userId))
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
             },
           })),
           createdAt: order.confirmationDate?.toISOString() || new Date().toISOString(),
-          estimatedDelivery: null,
+          estimatedDelivery: order.estimatedDelivery ?? null,
         };
       }),
     );

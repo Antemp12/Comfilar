@@ -46,9 +46,12 @@ export async function POST(request: NextRequest) {
       imageUrl: string;
       description?: string;
       order?: number;
+      type?: string;
+      pages?: string[];
+      pdfUrl?: string;
     };
 
-    const { title, imageUrl, description, order } = body;
+    const { title, imageUrl, description, order, type, pages, pdfUrl } = body;
 
 
     if (!title || !imageUrl) {
@@ -57,6 +60,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const cleanPages = Array.isArray(pages)
+      ? pages.map((p) => String(p).trim()).filter(Boolean)
+      : [];
 
     const id = `catalog-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -68,6 +75,9 @@ export async function POST(request: NextRequest) {
         imageUrl,
         description,
         order: order || 0,
+        type: type === "pricelist" ? "pricelist" : "carousel",
+        pages: cleanPages,
+        pdfUrl: typeof pdfUrl === "string" && pdfUrl.trim() ? pdfUrl.trim() : null,
       });
 
     // Buscar o catálogo criado

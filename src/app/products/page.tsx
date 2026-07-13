@@ -48,7 +48,7 @@ interface CategoryAttribute {
   id: string | number; // Can be string (attribute name) or number
   categoryId: number;
   name: string;
-  type: "text" | "select" | "range";
+  type: "text" | "select" | "range" | "number";
   values?: { id: number; value: string }[];
 }
 
@@ -93,6 +93,10 @@ export default function ProductsPage() {
         console.error("Erro ao restaurar filtros:", error);
       }
     }
+
+    // Pesquisa vinda do URL (?q=...) tem prioridade — ex.: vinda da home.
+    const urlQuery = new URLSearchParams(window.location.search).get("q");
+    if (urlQuery) setSearchTerm(urlQuery);
   }, []);
 
   // Fetch materials and main categories
@@ -161,81 +165,84 @@ export default function ProductsPage() {
     }));
   }, [searchTerm, selectedCategories, sortBy, minPrice, maxPrice]);
 
-  // Atributos dinâmicos só fazem sentido com UMA categoria selecionada.
-  const attributeCategoryId = selectedCategories.length === 1 ? selectedCategories[0] : null;
-
-  // Fetch category attributes when selected category changes
+  // Junta os filtros das categorias selecionadas E das suas subcategorias, para que
+  // ao escolher uma categoria-mãe apareçam também os filtros das subcategorias.
   useEffect(() => {
-    if (attributeCategoryId === null) {
+    if (selectedCategories.length === 0) {
       setCategoryAttributes([]);
       setAttributeFilters({});
       return;
     }
 
-    async function fetchAttributes() {
+    // Buscar filtros exatamente das categorias selecionadas (as subcategorias já
+    // são auto-selecionadas ao escolher a mãe; assim, desmarcar uma remove-a).
+    const ids = new Set<number>(selectedCategories);
+
+    let cancelled = false;
+
+    (async () => {
       try {
-        const res = await fetch(`/api/categories/${attributeCategoryId}/attributes`);
-        if (res.ok) {
-          const data = (await res.json()) as any;
-          
-          // Handle multiple response formats
-          const attributesList = Array.isArray(data?.data) ? data.data : 
-                                 Array.isArray(data) ? data : [];
-          
-          if (attributesList.length === 0) {
-            setCategoryAttributes([]);
-            setAttributeFilters({});
-            return;
-          }
-          
-          // Agrupar atributos com o mesmo nome, mas manter nomes para filtros
-          const attributesByName = new Map<string, { name: string; values: Set<string> }>();
-          
-          attributesList.forEach((attr: any) => {
-            const normalizedName = attr.name.toLowerCase().trim();
-            
-            if (!attributesByName.has(normalizedName)) {
-              attributesByName.set(normalizedName, {
+        const results = await Promise.all(
+          Array.from(ids).map(async (cid) => {
+            const res = await fetch(`/api/categories/${cid}/attributes`);
+            if (!res.ok) return [];
+            const data = (await res.json()) as any;
+            return Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+          }),
+        );
+
+        // Agrupa por nome (case-insensitive), une valores e guarda o tipo.
+        const byName = new Map<
+          string,
+          { name: string; type: "select" | "number"; values: Set<string> }
+        >();
+        for (const list of results) {
+          for (const attr of list) {
+            if (!attr?.name) continue;
+            const key = String(attr.name).toLowerCase().trim();
+            if (!byName.has(key)) {
+              byName.set(key, {
                 name: attr.name,
-                values: new Set()
+                type: attr.type === "number" ? "number" : "select",
+                values: new Set<string>(),
               });
             }
-            
-            // Adicionar todos os valores para este nome de atributo
+            const entry = byName.get(key)!;
+            if (attr.type === "number") entry.type = "number";
             if (Array.isArray(attr.values)) {
               attr.values.forEach((v: string) => {
-                if (v && v.trim()) {
-                  attributesByName.get(normalizedName)?.values.add(v.trim());
-                }
+                if (v && v.trim()) entry.values.add(v.trim());
               });
             }
-          });
-          
-          // Converter para o formato esperado - usar nome do atributo para filtering
-          const formattedAttrs = Array.from(attributesByName.entries()).map(([normalizedName, attr]) => ({
-            id: normalizedName, // Use normalized name as ID for filtering against material.attributes keys
-            categoryId: attributeCategoryId as number,
-            name: attr.name, // Display the original name
-            type: "select" as const,
+          }
+        }
+
+        if (cancelled) return;
+
+        const formatted: CategoryAttribute[] = Array.from(byName.entries()).map(
+          ([normalizedName, attr]) => ({
+            id: normalizedName, // chave normalizada, igual às chaves de material.attributes
+            categoryId: 0,
+            name: attr.name,
+            type: attr.type,
             values: Array.from(attr.values)
               .sort()
-              .map((v: string, vidx: number) => ({
-                id: vidx,
-                value: v
-              }))
-          }));
-          
-          setCategoryAttributes(formattedAttrs);
-          setAttributeFilters({});
-        }
+              .map((v, vidx) => ({ id: vidx, value: v })),
+          }),
+        );
+
+        setCategoryAttributes(formatted);
+        setAttributeFilters({});
       } catch (error) {
         console.error("❌ Error fetching attributes:", error);
-        setCategoryAttributes([]);
+        if (!cancelled) setCategoryAttributes([]);
       }
-    }
+    })();
 
-    fetchAttributes();
-  }, [attributeCategoryId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategories]);
 
   // Filter and sort materials
   const filteredMaterials = useMemo(() => {
@@ -251,34 +258,9 @@ export default function ProductsPage() {
       );
     }
 
-    // Filter by category (várias; uma categoria-mãe inclui as subcategorias)
+    // Filtra pelos ids exatamente selecionados (a mãe já auto-seleciona as subs).
     if (selectedCategories.length > 0) {
-      // Helper to find category by id recursively
-      const findCategoryById = (id: number, cats: Category[]): Category | null => {
-        for (const cat of cats) {
-          if (cat.id === id) return cat;
-          if (cat.subcategories) {
-            const found = findCategoryById(id, cat.subcategories);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-
-      // Helper to get all category IDs including subcategories
-      const getCategoryIds = (categoryId: number): number[] => {
-        const ids = [categoryId];
-        const category = findCategoryById(categoryId, mainCategories);
-        if (category?.subcategories) {
-          category.subcategories.forEach((sub) => {
-            ids.push(...getCategoryIds(sub.id));
-          });
-        }
-        return ids;
-      };
-
-      const allowedIds = new Set<number>();
-      selectedCategories.forEach((id) => getCategoryIds(id).forEach((cid) => allowedIds.add(cid)));
+      const allowedIds = new Set<number>(selectedCategories);
       result = result.filter((m) => allowedIds.has(m.categoryId));
     }
 
@@ -290,24 +272,39 @@ export default function ProductsPage() {
       result = result.filter((m) => Number.parseFloat(m.price) <= max);
     }
 
-    // Filter by attributes
+    // Filter by attributes (lista e numérico)
+    const attrTypeById = new Map(
+      categoryAttributes.map((a) => [String(a.id), a.type]),
+    );
     const activeAttributeFilters = Object.entries(attributeFilters).filter(
-      ([, values]) => values.length > 0
+      ([, values]) => values.some((v) => v && v.trim() !== ""),
     );
 
     if (activeAttributeFilters.length > 0) {
       result = result.filter((material) => {
-        // Check if material has all selected attribute values
-        return activeAttributeFilters.every(([attrId, selectedValues]) => {
-          const materialAttrs = material.attributes as Record<string, string[]> | undefined;
-          if (!materialAttrs) return false;
+        const materialAttrs = material.attributes as Record<string, string[]> | undefined;
+        if (!materialAttrs) return false;
 
+        return activeAttributeFilters.every(([attrId, filterValues]) => {
           const materialAttrValues = materialAttrs[attrId] || [];
-          // Check if material has at least one of the selected values for this attribute
-          return selectedValues.some((val) =>
+          const type = attrTypeById.get(attrId);
+
+          // Filtro numérico: filterValues = [min, max]
+          if (type === "number" || type === "range") {
+            const num = Number.parseFloat(materialAttrValues[0] ?? "");
+            if (Number.isNaN(num)) return false;
+            const min = filterValues[0] ? Number.parseFloat(filterValues[0]) : undefined;
+            const max = filterValues[1] ? Number.parseFloat(filterValues[1]) : undefined;
+            if (min !== undefined && !Number.isNaN(min) && num < min) return false;
+            if (max !== undefined && !Number.isNaN(max) && num > max) return false;
+            return true;
+          }
+
+          // Filtro de lista: pelo menos um valor selecionado coincide.
+          return filterValues.some((val) =>
             materialAttrValues.some(
-              (matVal: string) => matVal.toLowerCase() === val.toLowerCase()
-            )
+              (matVal: string) => matVal.toLowerCase() === val.toLowerCase(),
+            ),
           );
         });
       });
@@ -332,7 +329,7 @@ export default function ProductsPage() {
     });
 
     return result;
-  }, [materials, searchTerm, selectedCategories, sortBy, minPrice, maxPrice, mainCategories, attributeFilters]);
+  }, [materials, searchTerm, selectedCategories, sortBy, minPrice, maxPrice, mainCategories, attributeFilters, categoryAttributes]);
 
   // Paginação client-side sobre os resultados filtrados.
   const totalPages = Math.max(1, Math.ceil(filteredMaterials.length / pageSize));
@@ -583,11 +580,15 @@ export default function ProductsPage() {
                             type="checkbox"
                             checked={selectedCategories.includes(cat.id)}
                             onChange={() =>
-                              setSelectedCategories((prev) =>
-                                prev.includes(cat.id)
-                                  ? prev.filter((c) => c !== cat.id)
-                                  : [...prev, cat.id],
-                              )
+                              setSelectedCategories((prev) => {
+                                const group = [
+                                  cat.id,
+                                  ...(cat.subcategories ?? []).map((s) => s.id),
+                                ];
+                                return prev.includes(cat.id)
+                                  ? prev.filter((c) => !group.includes(c))
+                                  : Array.from(new Set([...prev, ...group]));
+                              })
                             }
                             className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
                           />
@@ -708,20 +709,17 @@ export default function ProductsPage() {
                         />
                       )}
 
-                      {attr.type === "range" && (
+                      {(attr.type === "range" || attr.type === "number") && (
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
                             placeholder="Mín"
                             value={attributeFilters[attr.id]?.[0] || ""}
                             onChange={(e) => {
+                              const v = e.target.value;
                               setAttributeFilters((prev) => {
                                 const current = prev[attr.id] || ["", ""];
-                                current[0] = e.target.value;
-                                return {
-                                  ...prev,
-                                  [attr.id]: current,
-                                };
+                                return { ...prev, [attr.id]: [v, current[1] ?? ""] };
                               });
                             }}
                             className="h-9 text-sm"
@@ -732,13 +730,10 @@ export default function ProductsPage() {
                             placeholder="Máx"
                             value={attributeFilters[attr.id]?.[1] || ""}
                             onChange={(e) => {
+                              const v = e.target.value;
                               setAttributeFilters((prev) => {
                                 const current = prev[attr.id] || ["", ""];
-                                current[1] = e.target.value;
-                                return {
-                                  ...prev,
-                                  [attr.id]: current,
-                                };
+                                return { ...prev, [attr.id]: [current[0] ?? "", v] };
                               });
                             }}
                             className="h-9 text-sm"

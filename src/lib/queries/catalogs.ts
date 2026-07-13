@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { catalogsTable } from "@/db/schema/catalogs";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export async function getAllCatalogs() {
   try {
@@ -20,7 +20,7 @@ export async function getCatalogById(id: string) {
     const catalog = await db
       .select()
       .from(catalogsTable)
-      .where((t) => t.id === id)
+      .where(eq(catalogsTable.id, id))
       .limit(1);
     return catalog[0] || null;
   } catch (error) {

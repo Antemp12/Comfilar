@@ -82,7 +82,9 @@ export default function CategoriesPage() {
 
   // Editor de filtros (atributos) de uma categoria
   const [filterCat, setFilterCat] = useState<Subcategory | null>(null);
-  const [filterAttrs, setFilterAttrs] = useState<{ name: string; valuesText: string }[]>([]);
+  const [filterAttrs, setFilterAttrs] = useState<
+    { name: string; valuesText: string; type: "select" | "number" }[]
+  >([]);
   const [filterLoading, setFilterLoading] = useState(false);
   const [filterSaving, setFilterSaving] = useState(false);
   const [normalizing, setNormalizing] = useState(false);
@@ -124,12 +126,13 @@ export default function CategoriesPage() {
         credentials: "include",
       });
       const data = (await res.json()) as {
-        data?: { name: string; values: string[] }[];
+        data?: { name: string; values: string[]; type?: string }[];
       };
       setFilterAttrs(
         (data.data ?? []).map((a) => ({
           name: a.name,
           valuesText: (a.values ?? []).join(", "),
+          type: a.type === "number" ? "number" : "select",
         })),
       );
     } catch (error) {
@@ -141,12 +144,12 @@ export default function CategoriesPage() {
   };
 
   const addFilterAttr = () =>
-    setFilterAttrs((p) => [...p, { name: "", valuesText: "" }]);
+    setFilterAttrs((p) => [...p, { name: "", valuesText: "", type: "select" }]);
   const removeFilterAttr = (idx: number) =>
     setFilterAttrs((p) => p.filter((_, i) => i !== idx));
   const updateFilterAttr = (
     idx: number,
-    field: "name" | "valuesText",
+    field: "name" | "valuesText" | "type",
     value: string,
   ) =>
     setFilterAttrs((p) =>
@@ -158,12 +161,16 @@ export default function CategoriesPage() {
     const attributes = filterAttrs
       .map((a) => ({
         name: a.name.trim(),
-        values: a.valuesText
-          .split(",")
-          .map((v) => v.trim())
-          .filter(Boolean),
+        type: a.type,
+        values:
+          a.type === "number"
+            ? []
+            : a.valuesText
+                .split(",")
+                .map((v) => v.trim())
+                .filter(Boolean),
       }))
-      .filter((a) => a.name && a.values.length > 0);
+      .filter((a) => a.name && (a.type === "number" || a.values.length > 0));
 
     const names = attributes.map((a) => a.name.toLowerCase());
     if (new Set(names).size !== names.length) {
@@ -775,6 +782,14 @@ export default function CategoriesPage() {
                       onChange={(e) => updateFilterAttr(idx, "name", e.target.value)}
                       placeholder="Nome do filtro (ex: Cor)"
                     />
+                    <select
+                      value={attr.type}
+                      onChange={(e) => updateFilterAttr(idx, "type", e.target.value)}
+                      className="rounded-md border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                      <option value="select">Lista</option>
+                      <option value="number">Número</option>
+                    </select>
                     <button
                       type="button"
                       onClick={() => removeFilterAttr(idx)}
@@ -784,11 +799,18 @@ export default function CategoriesPage() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  <Input
-                    value={attr.valuesText}
-                    onChange={(e) => updateFilterAttr(idx, "valuesText", e.target.value)}
-                    placeholder="Valores separados por vírgula (ex: Branco, Preto, Cinza)"
-                  />
+                  {attr.type === "number" ? (
+                    <p className="text-xs text-gray-500">
+                      Filtro numérico (ex: Potência em W). Cada material terá um número; no
+                      catálogo filtra-se por intervalo mín–máx.
+                    </p>
+                  ) : (
+                    <Input
+                      value={attr.valuesText}
+                      onChange={(e) => updateFilterAttr(idx, "valuesText", e.target.value)}
+                      placeholder="Valores separados por vírgula (ex: Branco, Preto, Cinza)"
+                    />
+                  )}
                 </div>
               ))}
 

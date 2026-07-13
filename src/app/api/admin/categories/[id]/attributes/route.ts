@@ -45,6 +45,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       id: a.id,
       name: a.attributeName,
       values: toValues(a.attributeValues),
+      type: (a as { type?: string }).type ?? "select",
     })),
   });
 }
@@ -74,6 +75,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const attrs: CategoryAttributeInput[] = body.attributes.map((a: any) => ({
       name: typeof a?.name === "string" ? a.name : "",
+      type: a?.type === "number" ? "number" : "select",
       values: Array.isArray(a?.values)
         ? a.values.filter((v: unknown): v is string => typeof v === "string")
         : [],

@@ -55,6 +55,7 @@ interface CategoryAttribute {
   id: number;
   name: string;
   values: string[];
+  type?: string; // "select" | "number"
 }
 
 interface Material {
@@ -473,18 +474,29 @@ export default function MaterialFormPage() {
                   <label className="block text-sm font-medium text-gray-900 dark:text-white">
                     {attr.name}
                   </label>
-                  <select
-                    value={(material.attributes?.[normalizedKey] || '')}
-                    onChange={(e) => handleAttributeChange(normalizedKey, e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                  >
-                    <option value="">-- Seleciona --</option>
-                    {attr.values.map((value, idx) => (
-                      <option key={idx} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
+                  {attr.type === 'number' ? (
+                    <input
+                      type="number"
+                      step="any"
+                      value={material.attributes?.[normalizedKey]?.[0] ?? ''}
+                      onChange={(e) => handleAttributeChange(normalizedKey, e.target.value)}
+                      placeholder={`${attr.name} (número)`}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                  ) : (
+                    <select
+                      value={material.attributes?.[normalizedKey]?.[0] ?? ''}
+                      onChange={(e) => handleAttributeChange(normalizedKey, e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                      <option value="">-- Seleciona --</option>
+                      {attr.values.map((value, idx) => (
+                        <option key={idx} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               );
             })}
