@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  SlidersHorizontal,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -78,6 +79,116 @@ export default function CategoriesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // IDs em processo de ativar/desativar (para desativar o switch enquanto guarda)
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
+  // Editor de filtros (atributos) de uma categoria
+  const [filterCat, setFilterCat] = useState<Subcategory | null>(null);
+  const [filterAttrs, setFilterAttrs] = useState<{ name: string; valuesText: string }[]>([]);
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [filterSaving, setFilterSaving] = useState(false);
+  const [normalizing, setNormalizing] = useState(false);
+
+  // Limpeza única: junta filtros duplicados e uniformiza valores/atributos.
+  const normalizeFilters = async () => {
+    if (
+      !window.confirm(
+        "Normalizar os filtros antigos? Junta duplicados e uniformiza os valores. É seguro e pode ser repetido.",
+      )
+    )
+      return;
+    setNormalizing(true);
+    try {
+      const res = await fetch("/api/admin/normalize-attributes", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) throw new Error(data?.error || "Erro ao normalizar");
+      toast.success(data.message || "Filtros normalizados");
+      fetchCategories();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao normalizar");
+    } finally {
+      setNormalizing(false);
+    }
+  };
+
+  const openFilters = async (cat: Subcategory) => {
+    setFilterCat(cat);
+    setFilterAttrs([]);
+    setFilterLoading(true);
+    try {
+      const res = await fetch(`/api/admin/categories/${cat.id}/attributes`, {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        data?: { name: string; values: string[] }[];
+      };
+      setFilterAttrs(
+        (data.data ?? []).map((a) => ({
+          name: a.name,
+          valuesText: (a.values ?? []).join(", "),
+        })),
+      );
+    } catch (error) {
+      console.error("Erro:", error);
+      toast.error("Erro ao carregar filtros");
+    } finally {
+      setFilterLoading(false);
+    }
+  };
+
+  const addFilterAttr = () =>
+    setFilterAttrs((p) => [...p, { name: "", valuesText: "" }]);
+  const removeFilterAttr = (idx: number) =>
+    setFilterAttrs((p) => p.filter((_, i) => i !== idx));
+  const updateFilterAttr = (
+    idx: number,
+    field: "name" | "valuesText",
+    value: string,
+  ) =>
+    setFilterAttrs((p) =>
+      p.map((a, i) => (i === idx ? { ...a, [field]: value } : a)),
+    );
+
+  const saveFilters = async () => {
+    if (!filterCat) return;
+    const attributes = filterAttrs
+      .map((a) => ({
+        name: a.name.trim(),
+        values: a.valuesText
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
+      }))
+      .filter((a) => a.name && a.values.length > 0);
+
+    const names = attributes.map((a) => a.name.toLowerCase());
+    if (new Set(names).size !== names.length) {
+      toast.error("Há filtros com o mesmo nome");
+      return;
+    }
+
+    setFilterSaving(true);
+    try {
+      const res = await fetch(`/api/admin/categories/${filterCat.id}/attributes`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ attributes }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data?.error || "Erro ao guardar");
+      toast.success("Filtros guardados");
+      setFilterCat(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao guardar");
+    } finally {
+      setFilterSaving(false);
+    }
+  };
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -289,10 +400,26 @@ export default function CategoriesPage() {
             Cria, edita e organiza categorias e subcategorias
           </p>
         </div>
-        <Button className="gap-2" onClick={() => openCreate(null)}>
-          <Plus className="h-4 w-4" />
-          Nova Categoria
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={normalizeFilters}
+            disabled={normalizing}
+            title="Junta filtros duplicados e uniformiza os valores antigos"
+          >
+            {normalizing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <SlidersHorizontal className="h-4 w-4" />
+            )}
+            Normalizar filtros
+          </Button>
+          <Button className="gap-2" onClick={() => openCreate(null)}>
+            <Plus className="h-4 w-4" />
+            Nova Categoria
+          </Button>
+        </div>
       </div>
 
       {categories.length === 0 ? (
@@ -362,6 +489,15 @@ export default function CategoriesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => openFilters(cat)}
+                      aria-label="Filtros"
+                      title="Filtros da categoria"
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => openEdit(cat)}
                       aria-label="Editar"
                     >
@@ -414,6 +550,15 @@ export default function CategoriesPage() {
                               onCheckedChange={() => handleToggleActive(sub)}
                               title={sub.isActive ? "Desativar" : "Ativar"}
                             />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openFilters(sub)}
+                              aria-label="Filtros"
+                              title="Filtros da subcategoria"
+                            >
+                              <SlidersHorizontal className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -587,6 +732,84 @@ export default function CategoriesPage() {
             >
               {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog editor de filtros (atributos) */}
+      <Dialog open={!!filterCat} onOpenChange={(open) => !open && setFilterCat(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Filtros — {filterCat?.name}</DialogTitle>
+            <DialogDescription>
+              Define os filtros (ex: Cor, Diâmetro) e os valores possíveis, separados
+              por vírgula. Os produtos desta categoria vão poder ser filtrados por eles.
+              {filterCat?.parentCategoryId != null && (
+                <span className="mt-1 block text-xs text-gray-500">
+                  Nota: os filtros da categoria-mãe já são herdados automaticamente.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {filterLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filterAttrs.length === 0 && (
+                <p className="py-4 text-center text-sm text-gray-500">
+                  Ainda não há filtros. Adiciona o primeiro.
+                </p>
+              )}
+              {filterAttrs.map((attr, idx) => (
+                <div
+                  key={idx}
+                  className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-800"
+                >
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={attr.name}
+                      onChange={(e) => updateFilterAttr(idx, "name", e.target.value)}
+                      placeholder="Nome do filtro (ex: Cor)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFilterAttr(idx)}
+                      className="rounded-md border border-gray-300 p-2 text-red-500 hover:bg-red-50 dark:border-gray-700 dark:hover:bg-red-900/20"
+                      aria-label="Remover filtro"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <Input
+                    value={attr.valuesText}
+                    onChange={(e) => updateFilterAttr(idx, "valuesText", e.target.value)}
+                    placeholder="Valores separados por vírgula (ex: Branco, Preto, Cinza)"
+                  />
+                </div>
+              ))}
+
+              <Button variant="outline" className="w-full gap-2" onClick={addFilterAttr}>
+                <Plus className="h-4 w-4" />
+                Adicionar filtro
+              </Button>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFilterCat(null)}
+              disabled={filterSaving}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={saveFilters} disabled={filterSaving || filterLoading}>
+              {filterSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar filtros
             </Button>
           </DialogFooter>
         </DialogContent>

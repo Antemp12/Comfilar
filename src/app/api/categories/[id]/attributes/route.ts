@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCategoryAttributes } from "~/lib/queries/category-attributes-mysql";
+import { getResolvedCategoryAttributes } from "~/lib/queries/category-attributes-mysql";
 
 /**
  * GET /api/categories/:id/attributes
- * Busca atributos dinâmicos de uma categoria
+ * Atributos dinâmicos (filtros) de uma categoria, já com herança da categoria-mãe.
  */
 export async function GET(
   request: NextRequest,
@@ -20,20 +20,10 @@ export async function GET(
       );
     }
 
-    const attributes = await getCategoryAttributes(categoryId);
-
+    const attributes = await getResolvedCategoryAttributes(categoryId);
 
     return NextResponse.json(
-      {
-        success: true,
-        data: attributes.map((attr: typeof attributes[0]) => ({
-          id: attr.id,
-          name: attr.attributeName,
-          values: Array.isArray(attr.attributeValues) 
-            ? attr.attributeValues 
-            : JSON.parse(attr.attributeValues as string),
-        })),
-      },
+      { success: true, data: attributes },
       { status: 200 }
     );
   } catch (error) {
