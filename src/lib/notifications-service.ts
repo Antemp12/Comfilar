@@ -25,8 +25,8 @@ interface NotificationData {
 
 const defaultNotificationColors: Record<NotificationType, string> = {
   pedido_criado: "#f59e0b", // amarelo (pendente)
-  pedido_confirmado: "#22c55e", // verde (sucesso)
-  pedido_preparacao: "#22c55e", // verde (sucesso)
+  pedido_confirmado: "#22c55e", // verde (permitido)
+  pedido_preparacao: "#f59e0b", // amarelo (em processo)
   pedido_enviado: "#22c55e", // verde (sucesso)
   pedido_entregue: "#22c55e", // verde (sucesso)
   reuniao_agendada: "#22c55e", // verde (sucesso)

@@ -1,20 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
-import { CheckCircle2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '~/ui/primitives/button';
 import { Input } from '~/ui/primitives/input';
 import { Label } from '~/ui/primitives/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '~/ui/primitives/dialog';
 import { useAuth } from '~/lib/auth-context';
 
 const registerSchema = z
@@ -41,16 +34,8 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<RegisterErrors>({});
   const [loading, setLoading] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const router = useRouter();
   const { register } = useAuth();
-
-  // Depois do sucesso, redireciona automaticamente ao fim de alguns segundos.
-  useEffect(() => {
-    if (!showSuccess) return;
-    const t = setTimeout(() => router.push('/dashboard/home'), 3500);
-    return () => clearTimeout(t);
-  }, [showSuccess, router]);
 
   const clearFieldError = (field: keyof RegisterErrors) => {
     setFieldErrors((prev) => {
@@ -81,10 +66,10 @@ export default function RegisterPage() {
 
     try {
       await register(name, email, password, 'cliente');
-      setShowSuccess(true);
+      toast.success('Conta criada com sucesso!');
+      router.push('/dashboard/home');
     } catch (err: any) {
       setError(err.message || 'Erro ao registar');
-    } finally {
       setLoading(false);
     }
   };
@@ -182,28 +167,6 @@ export default function RegisterPage() {
           </p>
         </div>
       </div>
-
-      {/* Modal de sucesso ao criar conta */}
-      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader className="items-center text-center">
-            <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-              <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
-            <DialogTitle className="text-center">Conta criada com sucesso!</DialogTitle>
-            <DialogDescription className="text-center">
-              Bem-vindo{name ? `, ${name.split(' ')[0]}` : ''}! A tua conta foi
-              criada e já tens sessão iniciada.
-            </DialogDescription>
-          </DialogHeader>
-          <Button className="w-full" onClick={() => router.push('/dashboard/home')}>
-            Ir para o painel
-          </Button>
-          <p className="text-center text-xs text-gray-400">
-            A redirecionar automaticamente…
-          </p>
-        </DialogContent>
-      </Dialog>
     </div>
     );
   }

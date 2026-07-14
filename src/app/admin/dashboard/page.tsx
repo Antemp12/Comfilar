@@ -141,7 +141,7 @@ export default async function AdminDashboardPage() {
             className="group relative rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-primary hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
           >
             {totalActiveOrders > 0 && (
-              <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-purple-600 px-1.5 text-xs font-bold text-white">
+              <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
                 {totalActiveOrders}
               </span>
             )}

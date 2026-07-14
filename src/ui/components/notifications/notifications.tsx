@@ -20,17 +20,17 @@ interface NotificationsProps {
 function formatTimestamp(date: Date) {
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diffInSeconds < 60) return "Just now";
+  if (diffInSeconds < 60) return "Agora mesmo";
   if (diffInSeconds < 3600) {
     const minutes = Math.floor(diffInSeconds / 60);
-    return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+    return minutes === 1 ? "Há 1 minuto" : `Há ${minutes} minutos`;
   }
   if (diffInSeconds < 86400) {
     const hours = Math.floor(diffInSeconds / 3600);
-    return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+    return hours === 1 ? "Há 1 hora" : `Há ${hours} horas`;
   }
   const days = Math.floor(diffInSeconds / 86400);
-  return days === 1 ? "1 day ago" : `${days} days ago`;
+  return days === 1 ? "Há 1 dia" : `Há ${days} dias`;
 }
 
 function getFallbackColor(type: Notification["type"]) {
@@ -113,7 +113,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
                   variant="ghost"
                 >
                   <Check className="h-3 w-3" />
-                  <span className="sr-only">Mark as read</span>
+                  <span className="sr-only">Marcar como lida</span>
                 </Button>
               )}
               <Button
@@ -123,7 +123,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
                 variant="ghost"
               >
                 <X className="h-3 w-3" />
-                <span className="sr-only">Dismiss</span>
+                <span className="sr-only">Dispensar</span>
               </Button>
             </div>
           </div>

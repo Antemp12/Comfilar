@@ -26,6 +26,7 @@ export function NotificationsWidget() {
 
   const fallbackColor = React.useCallback((type: string) => {
     if (type === "pedido_criado") return "#f59e0b";
+    if (type === "pedido_preparacao") return "#f59e0b";
     if (type === "reuniao_cancelada") return "#ef4444";
     if (type.startsWith("pedido_")) return "#22c55e";
     if (type.startsWith("reuniao_")) return "#22c55e";

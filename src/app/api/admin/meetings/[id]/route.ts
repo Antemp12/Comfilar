@@ -165,7 +165,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       const reasonText = reason ? `\n\nMotivo: ${reason}` : "";
       await createNotification({
         userId: meeting.userId,
-        type: "reuniao_agendada",
+        type: "reuniao_cancelada",
         title: "Reunião Cancelada",
         message: `A sua reunião para ${new Date(meeting.date).toLocaleDateString("pt-PT")} às ${meeting.startTime} foi cancelada.${reasonText}\n\nPara mais informações, contacte-nos via WhatsApp: +351 xxx xxx xxx`,
       });

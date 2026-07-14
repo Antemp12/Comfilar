@@ -75,6 +75,7 @@ const othersItems: NavItem[] = [
     subItems: [
       { name: "Categorias Destaque", path: "/admin/categorias-destaque" },
       { name: "Catálogos (Carrossel)", path: "/admin/catalogs" },
+      { name: "Tabelas de Preço", path: "/admin/tabelas-preco" },
     ],
   },
   {
