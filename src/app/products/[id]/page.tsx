@@ -167,8 +167,7 @@ export default async function ProductPage({ params }: PageProps) {
               Entrega & suporte
             </h2>
             <ul className="mt-3 space-y-2">
-              <li>✔️ Entrega em 24-72h úteis (Portugal Continental)</li>
-              <li>✔️ Devoluções fáceis em até 14 dias</li>
+              <li>✔️ Entrega em todo o país e ao estrangeiro</li>
               <li>✔️ Suporte técnico especializado</li>
             </ul>
           </div>

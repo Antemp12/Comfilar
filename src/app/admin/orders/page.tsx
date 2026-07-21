@@ -23,6 +23,7 @@ import {
 import { Search, Eye, Trash2, AlertTriangle, PackageX, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TablePagination } from "~/ui/components/table-pagination";
+import { useConfirm } from "~/ui/components/confirm-dialog";
 
 interface Order {
   id: number;
@@ -54,6 +55,7 @@ interface OrderItemView {
 }
 
 export default function OrdersPage() {
+  const { confirm, confirmDialog } = useConfirm();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,7 +109,14 @@ export default function OrdersPage() {
   };
 
   const handleDeleteOrder = async (orderId: number) => {
-    if (!confirm("Tem a certeza que deseja eliminar esta encomenda?")) return;
+    if (
+      !(await confirm({
+        title: "Eliminar encomenda",
+        description:
+          "Tem a certeza que deseja eliminar esta encomenda? Esta ação é permanente e não pode ser revertida.",
+      }))
+    )
+      return;
 
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
@@ -236,6 +245,7 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Encomendas</h1>

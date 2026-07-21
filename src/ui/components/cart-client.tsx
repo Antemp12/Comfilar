@@ -92,7 +92,7 @@ export function CartClient({ className, mockCart }: CartProps) {
 
   const CartContent = (
     <>
-      <div className="flex flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <div className="text-xl font-semibold">Seu Carrinho</div>
@@ -111,7 +111,7 @@ export function CartClient({ className, mockCart }: CartProps) {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6">
           <AnimatePresence>
             {items.length === 0 ? (
               <motion.div
@@ -218,14 +218,12 @@ export function CartClient({ className, mockCart }: CartProps) {
                             <Minus className="h-3 w-3" />
                             <span className="sr-only">Decrease quantity</span>
                           </button>
-                          <span
-                            className={`
-                              flex h-7 w-7 items-center justify-center text-xs
-                              font-medium
-                            `}
-                          >
-                            {item.quantity}
-                          </span>
+                          <QuantityInput
+                            value={item.quantity}
+                            onCommit={(qty) =>
+                              handleUpdateQuantity(item.id, qty)
+                            }
+                          />
                           <button
                             className={`
                               flex h-7 w-7 items-center justify-center
@@ -358,5 +356,54 @@ export function CartClient({ className, mockCart }: CartProps) {
         </Drawer>
       )}
     </div>
+  );
+}
+
+/**
+ * Campo de quantidade editável: permite escrever o número diretamente
+ * (além dos botões +/-). Mantém um rascunho local para poder apagar e
+ * reescrever; só confirma valores válidos (>= 1) e repõe no blur se ficar vazio.
+ */
+function QuantityInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (quantity: number) => void;
+}) {
+  const [draft, setDraft] = React.useState(String(value));
+
+  React.useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <input
+      aria-label="Quantidade"
+      className={`
+        h-7 w-10 border-0 bg-transparent text-center text-xs font-medium
+        [appearance:textfield] focus:outline-none
+        [&::-webkit-inner-spin-button]:appearance-none
+        [&::-webkit-outer-spin-button]:appearance-none
+      `}
+      inputMode="numeric"
+      min={1}
+      onBlur={() => {
+        const parsed = Number.parseInt(draft, 10);
+        if (Number.isNaN(parsed) || parsed < 1) {
+          setDraft(String(value));
+        }
+      }}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        const parsed = Number.parseInt(raw, 10);
+        if (!Number.isNaN(parsed) && parsed >= 1) {
+          onCommit(parsed);
+        }
+      }}
+      type="number"
+      value={draft}
+    />
   );
 }

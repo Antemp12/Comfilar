@@ -181,8 +181,8 @@ export default function DashboardHomePage() {
               {greetingForNow()}, {user?.name?.split(" ")[0] ?? "cliente"}!
             </h1>
             <p className="mt-3 max-w-xl text-base text-white/85 md:text-lg">
-              Encontre os materiais que precisa para a sua obra — entrega rápida e
-              orçamentos sem complicações.
+              Encontre os materiais que precisa para a sua obra — entrega em todo o
+              país e ao estrangeiro, e orçamentos sem complicações.
             </p>
 
             <form onSubmit={handleSearch} className="mt-6 flex max-w-xl gap-2">

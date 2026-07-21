@@ -7,6 +7,7 @@ import { Button } from "~/ui/primitives/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
 import { Input } from "~/ui/primitives/input";
 import { Textarea } from "~/ui/primitives/textarea";
+import { useConfirm } from "~/ui/components/confirm-dialog";
 import { useAuth } from "~/lib/auth-context";
 
 interface Catalog {
@@ -28,6 +29,7 @@ interface Catalog {
  */
 export default function PriceTablesPage() {
   const { user } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [catalogs, setCatalogs] = useState<Catalog[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Catalog | null>(null);
@@ -104,7 +106,15 @@ export default function PriceTablesPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tens a certeza que queres apagar esta tabela de preço?")) return;
+    if (
+      !(await confirm({
+        title: "Apagar tabela de preço",
+        description:
+          "Tens a certeza que queres apagar esta tabela de preço? Esta ação não pode ser revertida.",
+        confirmLabel: "Apagar",
+      }))
+    )
+      return;
     try {
       const response = await fetch(`/api/catalogs/${id}`, {
         method: "DELETE",
@@ -191,6 +201,7 @@ export default function PriceTablesPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-12">
+      {confirmDialog}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

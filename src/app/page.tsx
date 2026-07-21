@@ -21,9 +21,9 @@ import {
 const featuresWhyChooseUs = [
   {
     description:
-      "Entrega rápida em todo o país. Rastreamento em tempo real e confiabilidade garantida.",
+      "Entrega em todo o país e ao estrangeiro. Rastreamento em tempo real e confiabilidade garantida.",
     icon: <Truck className="h-6 w-6 text-primary" />,
-    title: "Entrega Rápida",
+    title: "Entrega Nacional e ao Estrangeiro",
   },
   {
     description:
@@ -178,7 +178,7 @@ export default function HomePage() {
                       md:text-xl
                     `}
                   >
-                    Descubra produtos de qualidade a preços competitivos, com entrega rápida e serviço de atendimento excepcional.
+                    Descubra produtos de qualidade a preços competitivos, com entrega em todo o país e ao estrangeiro e serviço de atendimento excepcional.
                   </p>
                 </div>
                 <div
@@ -214,7 +214,7 @@ export default function HomePage() {
                 >
                   <div className="flex items-center gap-1.5">
                     <Truck className="h-5 w-5 text-primary/70" />
-                    <span>Entrega rápida em todo o país</span>
+                    <span>Entrega em todo o país e ao estrangeiro</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-5 w-5 text-primary/70" />

@@ -54,6 +54,8 @@ export default function UsersPage() {
     company: "",
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -138,23 +140,27 @@ export default function UsersPage() {
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (!confirm("Tem a certeza que deseja eliminar este utilizador?")) return;
+  const handleConfirmDelete = async () => {
+    if (!deletingUser) return;
 
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await fetch(`/api/admin/users/${deletingUser.id}`, {
         method: "DELETE",
       });
 
       if (res.ok) {
-        setUsers(users.filter((u) => u.id !== userId));
+        setUsers(users.filter((u) => u.id !== deletingUser.id));
         toast.success("Utilizador eliminado com sucesso");
+        setDeletingUser(null);
       } else {
         toast.error("Erro ao eliminar utilizador");
       }
     } catch (error) {
       console.error("Erro:", error);
       toast.error("Erro ao eliminar utilizador");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -438,7 +444,7 @@ export default function UsersPage() {
                             size="icon"
                             variant="destructive"
                             className="h-8 w-8"
-                            onClick={() => handleDeleteUser(user.id)}
+                            onClick={() => setDeletingUser(user)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -503,6 +509,43 @@ export default function UsersPage() {
                 Guardar
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Confirmação de Eliminação */}
+      <Dialog
+        open={deletingUser !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar utilizador</DialogTitle>
+            <DialogDescription>
+              Tem a certeza que deseja eliminar{" "}
+              <span className="font-medium text-foreground">
+                {deletingUser?.name || deletingUser?.email}
+              </span>
+              ? Esta ação é permanente e não pode ser revertida.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingUser(null)}
+              disabled={isDeleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "A eliminar..." : "Eliminar"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

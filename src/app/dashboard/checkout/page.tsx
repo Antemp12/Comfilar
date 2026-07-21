@@ -14,6 +14,7 @@ import { Label } from "~/ui/primitives/label";
 import { Textarea } from "~/ui/primitives/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "~/ui/primitives/card";
 import { Checkbox } from "~/ui/primitives/checkbox";
+import { Calendar } from "~/ui/primitives/calendar";
 import Image from "next/image";
 import {
   MEETING_AVAILABILITY_KEY,
@@ -44,6 +45,9 @@ export default function CheckoutPage() {
     [availability],
   );
 
+  // Horas já ocupadas por dia: { "YYYY-MM-DD": ["09:00", ...] }
+  const [busySlots, setBusySlots] = React.useState<Record<string, string[]>>({});
+
   React.useEffect(() => {
     (async () => {
       try {
@@ -58,6 +62,70 @@ export default function CheckoutPage() {
     })();
   }, []);
 
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        const res = await fetch("/api/meetings/busy", {
+          headers: { Authorization: token ? `Bearer ${token}` : "" },
+          credentials: "include",
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { data?: Record<string, string[]> };
+          setBusySlots(json.data ?? {});
+        }
+      } catch {
+        /* sem info de ocupação — mostra tudo como livre */
+      }
+    })();
+  }, []);
+
+  // "YYYY-MM-DD" a partir de uma Date local (bate com o valor escolhido pelo cliente).
+  const toDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+
+  const todayStart = React.useMemo(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return t;
+  }, []);
+
+  // Um dia está indisponível se: for passado, não for dia de atendimento,
+  // ou já tiver todos os slots ocupados.
+  const isDayUnavailable = React.useCallback(
+    (date: Date) => {
+      if (date < todayStart) return true;
+      if (!availability.weekdays.includes(date.getDay())) return true;
+      const taken = busySlots[toDateKey(date)] ?? [];
+      return timeSlots.length > 0 && taken.length >= timeSlots.length;
+    },
+    [todayStart, availability.weekdays, busySlots, timeSlots.length],
+  );
+
+  // Dia de atendimento futuro que ainda tem slots livres → marcado a verde.
+  const isDayFree = React.useCallback(
+    (date: Date) => {
+      if (date < todayStart) return false;
+      if (!availability.weekdays.includes(date.getDay())) return false;
+      const taken = busySlots[toDateKey(date)] ?? [];
+      return timeSlots.length === 0 || taken.length < timeSlots.length;
+    },
+    [todayStart, availability.weekdays, busySlots, timeSlots.length],
+  );
+
+  // Dia de atendimento futuro totalmente ocupado → marcado a vermelho.
+  const isDayFull = React.useCallback(
+    (date: Date) => {
+      if (date < todayStart) return false;
+      if (!availability.weekdays.includes(date.getDay())) return false;
+      const taken = busySlots[toDateKey(date)] ?? [];
+      return timeSlots.length > 0 && taken.length >= timeSlots.length;
+    },
+    [todayStart, availability.weekdays, busySlots, timeSlots.length],
+  );
+
   const [formData, setFormData] = React.useState({
     // Etapa 1: Informações
     deliveryAddress: "",
@@ -71,6 +139,11 @@ export default function CheckoutPage() {
     meetingTime: "",
     meetingNotes: "",
   });
+
+  // Horas ocupadas para o dia atualmente selecionado.
+  const takenTimesForSelected = formData.meetingDate
+    ? busySlots[formData.meetingDate] ?? []
+    : [];
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const total = subtotal;
@@ -435,18 +508,65 @@ export default function CheckoutPage() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="meetingDate">Data *</Label>
-                    <Input
-                      id="meetingDate"
-                      type="date"
-                      value={formData.meetingDate}
-                      onChange={(e) => setFormData({ ...formData, meetingDate: e.target.value })}
-                    />
+                    <Label>Data *</Label>
+                    <div className="inline-block rounded-lg border bg-white">
+                      <Calendar
+                        mode="single"
+                        selected={
+                          formData.meetingDate
+                            ? new Date(`${formData.meetingDate}T00:00:00`)
+                            : undefined
+                        }
+                        onSelect={(date) => {
+                          if (!date) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              meetingDate: "",
+                              meetingTime: "",
+                            }));
+                            return;
+                          }
+                          const key = toDateKey(date);
+                          const taken = busySlots[key] ?? [];
+                          const firstFree =
+                            timeSlots.find((t) => !taken.includes(t)) ?? "";
+                          setFormData((prev) => ({
+                            ...prev,
+                            meetingDate: key,
+                            meetingTime: firstFree,
+                          }));
+                        }}
+                        disabled={isDayUnavailable}
+                        modifiers={{ free: isDayFree, full: isDayFull }}
+                        modifiersClassNames={{
+                          free: "bg-green-100 text-green-800 font-medium",
+                          full: "bg-red-200 text-red-800 line-through",
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 rounded-sm border border-green-300 bg-green-100" />{" "}
+                        Livre
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 rounded-sm border border-red-300 bg-red-200" />{" "}
+                        Ocupado
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 rounded-sm border border-gray-300 bg-gray-100" />{" "}
+                        Indisponível
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="meetingTime">Horário ({MEETING_SLOT_MINUTES} min) *</Label>
-                    {timeSlots.length === 0 ? (
+                    {!formData.meetingDate ? (
+                      <p className="text-sm text-gray-500">
+                        Escolha primeiro um dia no calendário.
+                      </p>
+                    ) : timeSlots.length === 0 ? (
                       <p className="text-sm text-gray-500">Sem horários disponíveis.</p>
                     ) : (
                       <select
@@ -455,11 +575,16 @@ export default function CheckoutPage() {
                         onChange={(e) => setFormData({ ...formData, meetingTime: e.target.value })}
                         className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        {timeSlots.map((t) => (
-                          <option key={t} value={t}>
-                            {t} — {addMinutesToTime(t, MEETING_SLOT_MINUTES)}
-                          </option>
-                        ))}
+                        <option value="">— Selecionar —</option>
+                        {timeSlots.map((t) => {
+                          const taken = takenTimesForSelected.includes(t);
+                          return (
+                            <option key={t} value={t} disabled={taken}>
+                              {t} — {addMinutesToTime(t, MEETING_SLOT_MINUTES)}
+                              {taken ? " (ocupado)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                     )}
                   </div>

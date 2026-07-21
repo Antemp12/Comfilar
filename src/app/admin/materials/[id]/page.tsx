@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Star, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '~/ui/primitives/button';
 import { MAX_MATERIAL_IMAGES } from '~/lib/material-images';
 
@@ -85,6 +85,7 @@ export default function MaterialFormPage() {
   const [images, setImages] = useState<{ url: string; isDefault: boolean }[]>([
     { url: '', isDefault: true },
   ]);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [material, setMaterial] = useState<Partial<Material>>({
     name: '',
     description: '',
@@ -199,8 +200,35 @@ export default function MaterialFormPage() {
     clearError('images');
   };
 
-  const setDefaultImage = (idx: number) => {
-    setImages((prev) => prev.map((img, i) => ({ ...img, isDefault: i === idx })));
+  // Carregar uma foto do PC para a linha `idx`.
+  const handleImageFile = async (
+    idx: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite re-selecionar o mesmo ficheiro
+    if (!file) return;
+    setUploadingIdx(idx);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) throw new Error(data?.error || 'Erro ao carregar imagem');
+      updateImageUrl(idx, data.url);
+      toast.success('Imagem carregada');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar imagem');
+    } finally {
+      setUploadingIdx(null);
+    }
   };
 
   const addImage = () => {
@@ -234,8 +262,10 @@ export default function MaterialFormPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Só imagens com URL preenchido contam.
-    const cleanedImages = images.filter((img) => img.url.trim());
+    // Só imagens com URL preenchido contam. A primeira é sempre a principal.
+    const cleanedImages = images
+      .filter((img) => img.url.trim())
+      .map((img, i) => ({ ...img, isDefault: i === 0 }));
 
     // Validação com zod antes de enviar
     const parsed = materialSchema.safeParse({ ...material, images: cleanedImages });
@@ -509,7 +539,7 @@ export default function MaterialFormPage() {
             <label className="block text-sm font-medium text-gray-900 dark:text-white">
               Imagens do Produto
               <span className="ml-1 text-xs font-normal text-gray-400">
-                (até {MAX_MATERIAL_IMAGES} — marca a imagem por defeito)
+                (até {MAX_MATERIAL_IMAGES} — a primeira é a principal)
               </span>
             </label>
             {images.length < MAX_MATERIAL_IMAGES && (
@@ -523,24 +553,37 @@ export default function MaterialFormPage() {
           <div className="mt-2 space-y-3">
             {images.map((img, idx) => (
               <div key={idx} className="flex items-start gap-2">
-                {/* Marcar por-defeito */}
-                <button
-                  type="button"
-                  onClick={() => setDefaultImage(idx)}
-                  title={img.isDefault ? 'Imagem por defeito' : 'Definir como por defeito'}
-                  className={`mt-1 rounded-md border p-2 ${
-                    img.isDefault
-                      ? 'border-yellow-400 bg-yellow-50 text-yellow-500 dark:bg-yellow-900/20'
-                      : 'border-gray-300 text-gray-400 hover:text-yellow-500 dark:border-gray-700'
+                {/* Índice / imagem principal */}
+                <span
+                  className={`mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border text-xs font-semibold ${
+                    idx === 0
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-gray-300 text-gray-400 dark:border-gray-700'
                   }`}
+                  title={idx === 0 ? 'Imagem principal' : `Imagem ${idx + 1}`}
                 >
-                  <Star className="h-4 w-4" fill={img.isDefault ? 'currentColor' : 'none'} />
-                </button>
+                  {idx === 0 ? 'Principal' : idx + 1}
+                </span>
 
                 <div className="flex-1">
+                  {/* Carregar do PC */}
+                  <label className="mb-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                    {uploadingIdx === idx ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Carregar do PC
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                      className="hidden"
+                      onChange={(e) => handleImageFile(idx, e)}
+                    />
+                  </label>
                   <input
                     type="url"
-                    placeholder="https://..."
+                    placeholder="ou colar um URL: https://..."
                     value={img.url}
                     onChange={(e) => updateImageUrl(idx, e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-gray-700 dark:bg-gray-800 dark:text-white"

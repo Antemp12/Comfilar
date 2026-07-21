@@ -9,12 +9,14 @@ import type { GalleryMediaItem } from "~/ui/components/blocks/bento-media-galler
 
 import { UploadButton } from "~/lib/uploadthing";
 import { BentoMediaGallery } from "~/ui/components/blocks/bento-media-gallery";
+import { useConfirm } from "~/ui/components/confirm-dialog";
 import { Alert, AlertDescription, AlertTitle } from "~/ui/primitives/alert";
 import { Button } from "~/ui/primitives/button";
 import { Input } from "~/ui/primitives/input";
 import { Skeleton } from "~/ui/primitives/skeleton";
 
 export default function UploadsPageClient() {
+  const { confirm, confirmDialog } = useConfirm();
   const [mediaGalleryItems, setMediaGalleryItems] = useState<
     GalleryMediaItem[]
   >([]);
@@ -92,7 +94,13 @@ export default function UploadsPageClient() {
   };
 
   const deleteMediaItem = async (id: number | string) => {
-    if (!confirm("Are you sure you want to delete this media?")) {
+    if (
+      !(await confirm({
+        title: "Eliminar ficheiro",
+        description:
+          "Tem a certeza que deseja eliminar este ficheiro? Esta ação não pode ser revertida.",
+      }))
+    ) {
       return;
     }
 
@@ -120,6 +128,7 @@ export default function UploadsPageClient() {
 
   return (
     <div className="space-y-8">
+      {confirmDialog}
       <div className="space-y-4">
         <div className="flex gap-4">
           <UploadButton

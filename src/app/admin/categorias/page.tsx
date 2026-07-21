@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/ui/primitives/dialog";
+import { useConfirm } from "@/ui/components/confirm-dialog";
 import { useAuth } from "@/lib/auth-context";
 
 interface Subcategory {
@@ -62,6 +63,7 @@ const categoryFormSchema = z.object({
 
 export default function CategoriesPage() {
   const { user } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -92,9 +94,13 @@ export default function CategoriesPage() {
   // Limpeza única: junta filtros duplicados e uniformiza valores/atributos.
   const normalizeFilters = async () => {
     if (
-      !window.confirm(
-        "Normalizar os filtros antigos? Junta duplicados e uniformiza os valores. É seguro e pode ser repetido.",
-      )
+      !(await confirm({
+        title: "Normalizar filtros",
+        description:
+          "Normalizar os filtros antigos? Junta duplicados e uniformiza os valores. É seguro e pode ser repetido.",
+        confirmLabel: "Normalizar",
+        variant: "default",
+      }))
     )
       return;
     setNormalizing(true);
@@ -398,6 +404,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
