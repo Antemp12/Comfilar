@@ -90,12 +90,13 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
             <div>
               <Label htmlFor="name">Nome Completo</Label>
               <Input
                 id="name"
                 placeholder="João Silva"
+                autoComplete="off"
                 value={name}
                 onChange={(e) => { setName(e.target.value); clearFieldError('name'); }}
                 disabled={loading}
@@ -112,6 +113,7 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="seu@email.com"
+                autoComplete="off"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); clearFieldError('email'); }}
                 disabled={loading}
@@ -128,6 +130,7 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 placeholder="Mínimo 8 caracteres"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); clearFieldError('password'); }}
                 disabled={loading}
@@ -144,6 +147,7 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 placeholder="Repita sua password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => { setConfirmPassword(e.target.value); clearFieldError('confirmPassword'); }}
                 disabled={loading}

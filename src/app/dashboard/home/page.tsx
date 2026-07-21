@@ -126,12 +126,15 @@ export default function DashboardHomePage() {
             : [];
         setCategories(
           catList
-            .filter((c: any) => !c.parentCategoryId && c.isActive !== false)
-            .slice(0, 6)
+            .filter((c: any) => !c.parentCategoryId && c.isFeatured === true)
+            .slice(0, 4)
             .map((c: any) => ({
               id: c.id,
               name: c.name,
-              image: c.image || "/images/placeholder-product.jpg",
+              image:
+                c.image ||
+                "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&auto=format&fit=crop&q=85&fm=webp",
+              productCount: 0,
             })),
         );
 
@@ -255,34 +258,44 @@ export default function DashboardHomePage() {
           {/* Catálogos */}
           <CatalogsCarousel />
 
-          {/* Categorias */}
+          {/* Categorias (igual à home pública) */}
           {categories.length > 0 && (
             <section>
-              <div className="mb-5 text-center">
-                <h2 className="text-2xl font-bold md:text-3xl">Explore por categoria</h2>
-                <div className="mx-auto mt-2 h-1 w-12 rounded-full bg-primary" />
+              <div className="mb-8 flex flex-col items-center text-center">
+                <h2 className="font-display text-3xl leading-tight font-bold tracking-tight md:text-4xl">
+                  Categorias Populares
+                </h2>
+                <div className="mt-2 h-1 w-12 rounded-full bg-primary" />
+                <p className="mt-4 max-w-2xl text-center text-muted-foreground">
+                  Encontre os melhores materiais nas nossas categorias curadas
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
                 {categories.map((category) => (
                   <button
                     key={category.id}
                     type="button"
                     onClick={() => goToCatalog({ selectedCategories: [category.id] })}
-                    aria-label={`Ver produtos de ${category.name}`}
-                    className="group overflow-hidden rounded-2xl border bg-card text-left shadow-sm transition-all hover:shadow-md"
+                    aria-label={`Explorar produtos de ${category.name}`}
+                    className="group relative flex flex-col space-y-4 overflow-hidden rounded-2xl border bg-card text-left shadow transition-all duration-300 hover:shadow-lg"
                   >
-                    <div className="relative aspect-square overflow-hidden bg-muted">
+                    <div className="relative aspect-[4/3] overflow-hidden">
+                      <div className="absolute inset-0 z-10 bg-gradient-to-t from-background/80 to-transparent" />
                       <Image
                         alt={category.name}
                         className="object-cover transition duration-300 group-hover:scale-105"
                         fill
-                        sizes="(max-width: 768px) 50vw, 16vw"
+                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
                         src={category.image}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      <p className="absolute inset-x-0 bottom-0 truncate p-3 text-sm font-semibold text-white">
-                        {category.name}
-                      </p>
+                    </div>
+                    <div className="relative z-20 -mt-6 p-4">
+                      <div className="mb-1 text-lg font-medium">{category.name}</div>
+                      {category.productCount > 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          {category.productCount} produtos
+                        </p>
+                      )}
                     </div>
                   </button>
                 ))}

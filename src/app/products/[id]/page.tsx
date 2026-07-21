@@ -139,7 +139,9 @@ export default async function ProductPage({ params }: PageProps) {
               <div className="flex items-center justify-between">
                 <span>Stock disponível</span>
                 <span className="font-medium text-foreground">
-                  {formatQuantityWithUnit(stockValue, product.priceType?.type)}
+                  {stockValue > 0
+                    ? formatQuantityWithUnit(stockValue, product.priceType?.type)
+                    : "Sem stock"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
